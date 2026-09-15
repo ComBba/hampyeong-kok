@@ -230,6 +230,25 @@ export default function NaverMap({
       return marker;
     };
 
+    // Distance helper in meters
+    const quickDistanceMeters = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+      const dLat = (lat2 - lat1) * 111000;
+      const dLng = (lng2 - lng1) * 91000;
+      return Math.sqrt(dLat * dLat + dLng * dLng);
+    };
+
+    // Adaptive cluster radius based on zoom level
+    const getClusterRadius = (zoom: number): number => {
+      if (zoom <= 11) return 2200;
+      if (zoom === 12) return 1200;
+      if (zoom === 13) return 700; // 함평읍 시가지 전체가 하나로 자연스럽게 묶임
+      if (zoom === 14) return 350; // 함평시장/군청/터미널 등 주요 구역별 분할
+      if (zoom === 15) return 150; // 골목 및 상권 블록별 분할
+      if (zoom === 16) return 65;  // 시장 골목 상설 매장 묶음
+      if (zoom === 17) return 25;  // 동일 건물/초밀집 매장 묶음
+      return 10;
+    };
+
     // Helper: create cluster badge marker
     const createClusterMarker = (
       clusterStores: Store[],
@@ -241,18 +260,22 @@ export default function NaverMap({
       maxLng: number
     ) => {
       const count = clusterStores.length;
-      let size = 38;
+      let size = 32;
       let fontSize = 12;
+      let bg = 'linear-gradient(135deg, #34d399 0%, #059669 100%)';
 
-      if (count >= 200) {
+      if (count >= 100) {
         size = 54;
         fontSize = 15;
-      } else if (count >= 50) {
-        size = 46;
+        bg = 'linear-gradient(135deg, #047857 0%, #065f46 100%)';
+      } else if (count >= 30) {
+        size = 44;
         fontSize = 14;
+        bg = 'linear-gradient(135deg, #059669 0%, #0d9488 100%)';
       } else if (count >= 10) {
-        size = 40;
+        size = 38;
         fontSize = 13;
+        bg = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
       }
 
       const clusterContent = `
@@ -263,9 +286,9 @@ export default function NaverMap({
           width: ${size}px;
           height: ${size}px;
           border-radius: 50%;
-          background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+          background: ${bg};
           border: 3px solid #ffffff;
-          box-shadow: 0 4px 12px rgba(5, 150, 105, 0.45);
+          box-shadow: 0 4px 14px rgba(4, 120, 87, 0.4);
           color: #ffffff;
           font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
           font-size: ${fontSize}px;
@@ -273,6 +296,7 @@ export default function NaverMap({
           cursor: pointer;
           user-select: none;
           letter-spacing: -0.5px;
+          transition: transform 0.15s ease-out;
         ">
           <span>${count}</span>
         </div>
@@ -291,92 +315,98 @@ export default function NaverMap({
       });
 
       window.naver.maps.Event.addListener(marker, 'click', () => {
-        if (minLat === maxLat && minLng === maxLng) {
-          map.setCenter(new window.naver.maps.LatLng(avgLat, avgLng));
-          map.setZoom(Math.min(18, currentZoom + 2));
+        // 동일 건물(시장 등)에 20m 이내로 밀집된 경우: 최대 확대 후 첫 번째 매장 정보 바텀시트 호출
+        const spanDist = quickDistanceMeters(minLat, minLng, maxLat, maxLng);
+        if (spanDist < 20 && currentZoom >= 16) {
+          map.panTo(new window.naver.maps.LatLng(avgLat, avgLng), { duration: 250 });
+          onSelectStore(clusterStores[0]);
         } else {
-          const bounds = new window.naver.maps.LatLngBounds(
-            new window.naver.maps.LatLng(minLat, minLng),
-            new window.naver.maps.LatLng(maxLat, maxLng)
-          );
-          map.fitBounds(bounds, { margin: 60 });
+          // 점진적 단계 확대 (+2레벨씩 부드럽게 확대되어 중간 계층 클러스터링 유지)
+          const nextZoom = Math.min(currentZoom + 2, 18);
+          map.panTo(new window.naver.maps.LatLng(avgLat, avgLng), { duration: 300 });
+          map.setZoom(nextZoom, true);
         }
       });
 
       return marker;
     };
 
-    if (currentZoom < 15) {
-      // Dynamic grid cell size based on current zoom level
-      const scale = Math.pow(2, 13 - currentZoom);
-      const cellLat = 0.018 * scale;
-      const cellLng = 0.024 * scale;
+    // Distance-based Centroid Clustering (줌 17까지 다단계 클러스터링 적용)
+    if (currentZoom <= 17) {
+      const radius = getClusterRadius(currentZoom);
+      const clusters: {
+        stores: Store[];
+        centerLat: number;
+        centerLng: number;
+        minLat: number;
+        maxLat: number;
+        minLng: number;
+        maxLng: number;
+      }[] = [];
 
-      const bins: {
-        [key: string]: {
-          stores: Store[];
-          sumLat: number;
-          sumLng: number;
-          minLat: number;
-          maxLat: number;
-          minLng: number;
-          maxLng: number;
-        };
-      } = {};
+      const validStores = stores.filter((s) => s.lat && s.lng);
 
-      stores.forEach((store) => {
-        if (!store.lat || !store.lng) return;
-        const gridY = Math.floor(store.lat / cellLat);
-        const gridX = Math.floor(store.lng / cellLng);
-        const key = `${gridY}_${gridX}`;
+      validStores.forEach((store) => {
+        const sLat = store.lat!;
+        const sLng = store.lng!;
 
-        if (!bins[key]) {
-          bins[key] = {
-            stores: [],
-            sumLat: 0,
-            sumLng: 0,
-            minLat: store.lat,
-            maxLat: store.lat,
-            minLng: store.lng,
-            maxLng: store.lng,
-          };
+        let bestCluster: (typeof clusters)[0] | null = null;
+        let minDistance = radius;
+
+        for (const c of clusters) {
+          const dist = quickDistanceMeters(c.centerLat, c.centerLng, sLat, sLng);
+          if (dist < minDistance) {
+            minDistance = dist;
+            bestCluster = c;
+          }
         }
 
-        bins[key].stores.push(store);
-        bins[key].sumLat += store.lat;
-        bins[key].sumLng += store.lng;
-        bins[key].minLat = Math.min(bins[key].minLat, store.lat);
-        bins[key].maxLat = Math.max(bins[key].maxLat, store.lat);
-        bins[key].minLng = Math.min(bins[key].minLng, store.lng);
-        bins[key].maxLng = Math.max(bins[key].maxLng, store.lng);
+        if (bestCluster) {
+          bestCluster.stores.push(store);
+          const count = bestCluster.stores.length;
+          bestCluster.centerLat = (bestCluster.centerLat * (count - 1) + sLat) / count;
+          bestCluster.centerLng = (bestCluster.centerLng * (count - 1) + sLng) / count;
+          bestCluster.minLat = Math.min(bestCluster.minLat, sLat);
+          bestCluster.maxLat = Math.max(bestCluster.maxLat, sLat);
+          bestCluster.minLng = Math.min(bestCluster.minLng, sLng);
+          bestCluster.maxLng = Math.max(bestCluster.maxLng, sLng);
+        } else {
+          clusters.push({
+            stores: [store],
+            centerLat: sLat,
+            centerLng: sLng,
+            minLat: sLat,
+            maxLat: sLat,
+            minLng: sLng,
+            maxLng: sLng,
+          });
+        }
       });
 
-      // Render clusters or single pins
-      Object.entries(bins).forEach(([key, bin]) => {
-        if (bin.stores.length === 1) {
-          const s = bin.stores[0];
+      // Render clusters and single pins
+      clusters.forEach((c, idx) => {
+        if (c.stores.length === 1) {
+          const s = c.stores[0];
           newMarkers[s.id] = createStoreMarker(s, selectedStore?.id === s.id);
         } else {
-          const avgLat = bin.sumLat / bin.stores.length;
-          const avgLng = bin.sumLng / bin.stores.length;
-          newMarkers[`cluster_${key}`] = createClusterMarker(
-            bin.stores,
-            avgLat,
-            avgLng,
-            bin.minLat,
-            bin.maxLat,
-            bin.minLng,
-            bin.maxLng
+          newMarkers[`cluster_${idx}`] = createClusterMarker(
+            c.stores,
+            c.centerLat,
+            c.centerLng,
+            c.minLat,
+            c.maxLat,
+            c.minLng,
+            c.maxLng
           );
         }
       });
 
-      // Ensure currently selected store is always rendered as an individual pin
+      // Ensure currently selected store is always rendered as an active individual pin
       if (selectedStore && selectedStore.lat && selectedStore.lng && !newMarkers[selectedStore.id]) {
         newMarkers[selectedStore.id] = createStoreMarker(selectedStore, true);
       }
     } else {
-      // Zoom >= 15: Render all individual pins
+      // Zoom >= 18: Render all individual pins
       stores.forEach((store) => {
         if (!store.lat || !store.lng) return;
         newMarkers[store.id] = createStoreMarker(store, selectedStore?.id === store.id);
