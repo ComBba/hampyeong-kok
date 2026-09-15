@@ -1,0 +1,362 @@
+'use client';
+
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { Store, UserLocation } from '@/types/store';
+import { Navigation2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+
+interface NaverMapProps {
+  stores: Store[];
+  selectedStore: Store | null;
+  onSelectStore: (store: Store | null) => void;
+  userLocation: UserLocation | null;
+  onLocateMe: () => void;
+  isLocating: boolean;
+}
+
+declare global {
+  interface Window {
+    naver: any;
+  }
+}
+
+const DEFAULT_CENTER = { lat: 35.0655, lng: 126.5165 }; // 함평군청 중심
+const DEFAULT_ZOOM = 13;
+
+export default function NaverMap({
+  stores,
+  selectedStore,
+  onSelectStore,
+  userLocation,
+  onLocateMe,
+  isLocating,
+}: NaverMapProps) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const naverMapInstance = useRef<any>(null);
+  const markersRef = useRef<{ [id: string]: any }>({});
+  const userMarkerRef = useRef<any>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const clientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID;
+
+  // 1. Script Loading
+  useEffect(() => {
+    if (!clientId) {
+      setLoadError("NEXT_PUBLIC_NAVER_MAP_CLIENT_ID가 설정되지 않았습니다.");
+      return;
+    }
+
+    if (window.naver && window.naver.maps) {
+      setIsLoaded(true);
+      return;
+    }
+
+    const scriptId = 'naver-map-script';
+    if (document.getElementById(scriptId)) {
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.type = 'text/javascript';
+    // Support ncpKeyId / ncpClientId
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}`;
+    script.async = true;
+
+    script.onload = () => {
+      if (window.naver && window.naver.maps) {
+        setIsLoaded(true);
+      } else {
+        setLoadError("네이버 지도 API를 불러오지 못했습니다.");
+      }
+    };
+
+    script.onerror = () => {
+      setLoadError("네이버 지도 스크립트 로드 실패. Client ID 및 웹 서비스 URL을 확인해 주세요.");
+    };
+
+    document.head.appendChild(script);
+  }, [clientId]);
+
+  // 2. Initialize Map
+  useEffect(() => {
+    if (!isLoaded || !mapRef.current || naverMapInstance.current) return;
+
+    try {
+      const mapOptions = {
+        center: new window.naver.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng),
+        zoom: DEFAULT_ZOOM,
+        minZoom: 10,
+        maxZoom: 19,
+        zoomControl: false,
+        mapTypeControl: false,
+        scaleControl: true,
+      };
+
+      const map = new window.naver.maps.Map(mapRef.current, mapOptions);
+      naverMapInstance.current = map;
+
+      // Click background to deselect
+      window.naver.maps.Event.addListener(map, 'click', () => {
+        onSelectStore(null);
+      });
+    } catch (err: any) {
+      console.error("Map initialization error:", err);
+      setLoadError("지도 초기화 오류: " + err.message);
+    }
+  }, [isLoaded, onSelectStore]);
+
+  // 3. Render Markers for Stores
+  useEffect(() => {
+    if (!isLoaded || !naverMapInstance.current) return;
+    const map = naverMapInstance.current;
+
+    // Clear old markers
+    Object.values(markersRef.current).forEach((marker: any) => {
+      marker.setMap(null);
+    });
+    markersRef.current = {};
+
+    const newMarkers: { [id: string]: any } = {};
+
+    stores.forEach((store) => {
+      if (!store.lat || !store.lng) return;
+
+      const isSelected = selectedStore?.id === store.id;
+
+      // Pin Color & Style
+      let pinColor = '#16a34a'; // green
+      let pinBorder = '#15803d';
+      let pinDot = '#86efac';
+
+      if (store.status === 'unavailable') {
+        pinColor = '#dc2626'; // red
+        pinBorder = '#b91c1c';
+        pinDot = '#fca5a5';
+      } else if (store.status === 'verify') {
+        pinColor = '#d97706'; // amber
+        pinBorder = '#b45309';
+        pinDot = '#fde68a';
+      }
+
+      const markerContent = `
+        <div class="marker-pin ${isSelected ? 'active' : ''}" style="position: relative; cursor: pointer;">
+          <div style="
+            width: ${isSelected ? '32px' : '24px'};
+            height: ${isSelected ? '32px' : '24px'};
+            background-color: ${pinColor};
+            border: 2px solid #ffffff;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          ">
+            <div style="
+              width: ${isSelected ? '12px' : '8px'};
+              height: ${isSelected ? '12px' : '8px'};
+              background-color: #ffffff;
+              border-radius: 50%;
+              transform: rotate(45deg);
+            "></div>
+          </div>
+        </div>
+      `;
+
+      const marker = new window.naver.maps.Marker({
+        position: new window.naver.maps.LatLng(store.lat, store.lng),
+        map: map,
+        title: store.name,
+        icon: {
+          content: markerContent,
+          size: new window.naver.maps.Size(isSelected ? 32 : 24, isSelected ? 32 : 24),
+          anchor: new window.naver.maps.Point(isSelected ? 16 : 12, isSelected ? 32 : 24),
+        },
+        zIndex: isSelected ? 100 : 10,
+      });
+
+      window.naver.maps.Event.addListener(marker, 'click', (e: any) => {
+        onSelectStore(store);
+      });
+
+      newMarkers[store.id] = marker;
+    });
+
+    markersRef.current = newMarkers;
+  }, [isLoaded, stores, selectedStore, onSelectStore]);
+
+  // 4. Focus on selected store
+  useEffect(() => {
+    if (!naverMapInstance.current || !selectedStore || !selectedStore.lat || !selectedStore.lng) return;
+    const map = naverMapInstance.current;
+    const targetCoord = new window.naver.maps.LatLng(selectedStore.lat, selectedStore.lng);
+
+    map.panTo(targetCoord, { duration: 300 });
+    if (map.getZoom() < 16) {
+      map.setZoom(16, true);
+    }
+  }, [selectedStore]);
+
+  // 5. User GPS location marker
+  useEffect(() => {
+    if (!isLoaded || !naverMapInstance.current) return;
+    const map = naverMapInstance.current;
+
+    if (!userLocation) {
+      if (userMarkerRef.current) {
+        userMarkerRef.current.setMap(null);
+        userMarkerRef.current = null;
+      }
+      return;
+    }
+
+    const pos = new window.naver.maps.LatLng(userLocation.lat, userLocation.lng);
+
+    const userContent = `
+      <div style="position: relative; width: 22px; height: 22px;">
+        <div style="
+          position: absolute;
+          inset: 0;
+          background: rgba(59, 130, 246, 0.4);
+          border-radius: 50%;
+          animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+        "></div>
+        <div style="
+          position: absolute;
+          inset: 3px;
+          background: #2563eb;
+          border: 2.5px solid #ffffff;
+          border-radius: 50%;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        "></div>
+      </div>
+    `;
+
+    if (!userMarkerRef.current) {
+      userMarkerRef.current = new window.naver.maps.Marker({
+        position: pos,
+        map: map,
+        icon: {
+          content: userContent,
+          anchor: new window.naver.maps.Point(11, 11),
+        },
+        zIndex: 999,
+      });
+    } else {
+      userMarkerRef.current.setPosition(pos);
+    }
+  }, [isLoaded, userLocation]);
+
+  // Map Controls
+  const handleZoomIn = () => {
+    if (naverMapInstance.current) {
+      naverMapInstance.current.setZoom(naverMapInstance.current.getZoom() + 1, true);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (naverMapInstance.current) {
+      naverMapInstance.current.setZoom(naverMapInstance.current.getZoom() - 1, true);
+    }
+  };
+
+  const handleResetCenter = () => {
+    if (naverMapInstance.current) {
+      naverMapInstance.current.panTo(
+        new window.naver.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng),
+        { duration: 300 }
+      );
+      naverMapInstance.current.setZoom(DEFAULT_ZOOM, true);
+      onSelectStore(null);
+    }
+  };
+
+  return (
+    <div className="relative w-full h-full bg-slate-100 overflow-hidden">
+      {/* Naver Map DOM Container */}
+      <div ref={mapRef} className="w-full h-full" />
+
+      {/* Fallback / Loading / Error overlay */}
+      {!isLoaded && !loadError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/80 backdrop-blur-sm z-10">
+          <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mb-2" />
+          <p className="text-xs font-semibold text-slate-600">지도를 불러오는 중입니다...</p>
+        </div>
+      )}
+
+      {loadError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/95 p-6 text-center z-10">
+          <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 mb-3 font-bold text-xl">
+            !
+          </div>
+          <h4 className="text-sm font-bold text-slate-900 mb-1">지도 로드 안내</h4>
+          <p className="text-xs text-slate-600 max-w-sm mb-4 leading-relaxed">{loadError}</p>
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-500 text-left space-y-1">
+            <p>1. 네이버 클라우드 플랫폼 콘솔에 접속</p>
+            <p>2. Maps &gt; Application 등록 정보 확인</p>
+            <p>3. Web 서비스 URL에 현재 접속 도메인이 포함되어 있는지 확인</p>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Control Buttons */}
+      <div className="absolute right-3.5 top-3.5 z-10 flex flex-col gap-1.5 shadow-md">
+        {/* GPS Locate Me Button */}
+        <button
+          onClick={onLocateMe}
+          disabled={isLocating}
+          className={`w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-sm transition-colors ${
+            userLocation ? 'text-blue-600' : 'text-slate-700 hover:text-blue-600'
+          }`}
+          title="내 위치 찾기"
+        >
+          <Navigation2 className={`w-4 h-4 ${isLocating ? 'animate-spin text-blue-600' : ''}`} />
+        </button>
+
+        {/* Reset Hampyeong Center */}
+        <button
+          onClick={handleResetCenter}
+          className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-700 hover:text-emerald-700 shadow-sm transition-colors"
+          title="함평 전체 보기"
+        >
+          <RotateCcw className="w-4 h-4" />
+        </button>
+
+        {/* Zoom In */}
+        <button
+          onClick={handleZoomIn}
+          className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-700 hover:text-slate-900 shadow-sm transition-colors"
+          title="확대"
+        >
+          <ZoomIn className="w-4 h-4" />
+        </button>
+
+        {/* Zoom Out */}
+        <button
+          onClick={handleZoomOut}
+          className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-700 hover:text-slate-900 shadow-sm transition-colors"
+          title="축소"
+        >
+          <ZoomOut className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Map Legend Pill */}
+      <div className="absolute left-3.5 bottom-5 z-10 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm hidden md:flex items-center gap-3 text-xs font-semibold text-slate-700">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
+          <span>사용 가능</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 ring-2 ring-amber-200" />
+          <span>확인 필요</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-rose-200" />
+          <span>사용 불가</span>
+        </div>
+      </div>
+    </div>
+  );
+}
