@@ -11,6 +11,8 @@ import NaverMap from '@/components/NaverMap';
 import BottomSheet from '@/components/BottomSheet';
 import MarketBanner from '@/components/MarketBanner';
 import HanaroMartAlert from '@/components/HanaroMartAlert';
+import SeniorMode from '@/components/SeniorMode';
+import DDayBadge from '@/components/DDayBadge';
 import { 
   Sparkles, 
   MapPin, 
@@ -21,7 +23,8 @@ import {
   List, 
   Map, 
   ArrowUpDown,
-  Compass
+  Compass,
+  Heart
 } from 'lucide-react';
 
 const storesData = storesDataRaw as {
@@ -65,6 +68,35 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [isSeniorMode, setIsSeniorMode] = useState(false);
+
+  // Load favorites from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('hampyeong_kok_favorites');
+      if (saved) {
+        setFavorites(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error('Failed to load favorites:', e);
+    }
+  }, []);
+
+  // Toggle favorite handler
+  const handleToggleFavorite = useCallback((storeId: string) => {
+    setFavorites((prev) => {
+      const exists = prev.includes(storeId);
+      const next = exists ? prev.filter((id) => id !== storeId) : [...prev, storeId];
+      try {
+        localStorage.setItem('hampyeong_kok_favorites', JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to save favorites:', e);
+      }
+      return next;
+    });
+  }, []);
 
   const isHanaroRelated = searchQuery.includes('하나로') || selectedCategory === '농협·하나로마트';
 
@@ -101,6 +133,11 @@ export default function Home() {
       }
       return { ...s, distance: dist };
     });
+
+    // 0. Favorites Only Filter
+    if (showFavoritesOnly) {
+      result = result.filter((s) => favorites.includes(s.id));
+    }
 
     // 1. Status Filter
     if (selectedStatus !== 'all') {
@@ -150,7 +187,7 @@ export default function Home() {
     }
 
     return result;
-  }, [searchQuery, selectedTown, selectedCategory, selectedStatus, selectedRadius, sortOption, userLocation]);
+  }, [searchQuery, selectedTown, selectedCategory, selectedStatus, selectedRadius, sortOption, userLocation, showFavoritesOnly, favorites]);
 
   // Overall counts for filter badges
   const counts = useMemo(() => {
@@ -168,6 +205,21 @@ export default function Home() {
     return { all, available, unavailable, verify };
   }, []);
 
+  if (isSeniorMode) {
+    return (
+      <SeniorMode
+        stores={storesData.stores}
+        onExit={() => setIsSeniorMode(false)}
+        userLocation={userLocation}
+        onLocateMe={handleLocateMe}
+        isLocating={isLocating}
+        favorites={favorites}
+        onToggleFavorite={handleToggleFavorite}
+        towns={storesData.towns}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-50">
       {/* 1. Header (Desktop: Always / Mobile: List View Only) */}
@@ -177,6 +229,8 @@ export default function Home() {
           onViewModeChange={setViewMode}
           totalCount={counts.all}
           availableCount={counts.available}
+          onToggleSeniorMode={() => setIsSeniorMode(!isSeniorMode)}
+          isSeniorMode={isSeniorMode}
         />
       </div>
 
@@ -213,6 +267,9 @@ export default function Home() {
               onSortOptionChange={setSortOption}
               userLocation={userLocation}
               onLocateMe={handleLocateMe}
+              favoritesCount={favorites.length}
+              showFavoritesOnly={showFavoritesOnly}
+              onToggleFavoritesOnly={() => setShowFavoritesOnly(!showFavoritesOnly)}
             />
           </div>
 
@@ -287,6 +344,8 @@ export default function Home() {
                   key={store.id}
                   store={store}
                   isSelected={selectedStore?.id === store.id}
+                  isFavorite={favorites.includes(store.id)}
+                  onToggleFavorite={handleToggleFavorite}
                   onSelect={() => {
                     setSelectedStore(store);
                     if (viewMode === 'list' && window.innerWidth < 768) {
@@ -332,6 +391,16 @@ export default function Home() {
                 )}
               </div>
 
+              {/* Senior Mode Toggle Button */}
+              <button
+                onClick={() => setIsSeniorMode(true)}
+                className="px-2 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold flex items-center gap-0.5 flex-shrink-0 shadow-2xs transition-all active:scale-95"
+                title="어르신 전용 큰글씨 쉬운 모드로 전환"
+              >
+                <span>👓</span>
+                <span className="hidden sm:inline font-extrabold">큰글씨</span>
+              </button>
+
               {/* GPS Locate Button */}
               <button
                 onClick={handleLocateMe}
@@ -361,17 +430,35 @@ export default function Home() {
 
             {/* 2. Horizontal 1-Line Quick Scrollable Chips (Zero text-wrapping) */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs pointer-events-auto">
+              {/* D-Day Countdown Badge */}
+              <DDayBadge />
+
+              {/* Favorites Chip (if any favorited) */}
+              {favorites.length > 0 && (
+                <button
+                  onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                  className={`px-2.5 py-1.5 rounded-full font-bold whitespace-nowrap flex-shrink-0 border shadow-xs transition-all flex items-center gap-1 ${
+                    showFavoritesOnly
+                      ? 'bg-rose-600 text-white border-rose-600'
+                      : 'bg-white/95 text-rose-700 border-rose-200'
+                  }`}
+                >
+                  <Heart className="w-3 h-3 fill-current" />
+                  <span>단골 {favorites.length}</span>
+                </button>
+              )}
+
               {/* Status Toggle Pill */}
               <button
                 onClick={() => setSelectedStatus(selectedStatus === 'available' ? 'all' : 'available')}
                 className={`px-3 py-1.5 rounded-full font-bold whitespace-nowrap flex-shrink-0 border shadow-xs transition-all flex items-center gap-1 ${
-                  selectedStatus === 'available'
+                  selectedStatus === 'available' && !showFavoritesOnly
                     ? 'bg-emerald-600 text-white border-emerald-600'
                     : 'bg-white/95 text-slate-700 border-slate-200'
                 }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${selectedStatus === 'available' ? 'bg-emerald-300' : 'bg-slate-400'}`} />
-                <span>{selectedStatus === 'available' ? `사용 가능만 ${counts.available}` : `전체보기 ${counts.all}`}</span>
+                <span className={`w-1.5 h-1.5 rounded-full ${selectedStatus === 'available' && !showFavoritesOnly ? 'bg-emerald-300' : 'bg-slate-400'}`} />
+                <span>{selectedStatus === 'available' && !showFavoritesOnly ? `사용 가능만 ${counts.available}` : `전체보기 ${counts.all}`}</span>
               </button>
 
               {/* Radius Chips */}
@@ -448,6 +535,8 @@ export default function Home() {
             selectedStore={selectedStore}
             onSelectStore={setSelectedStore}
             totalFiltered={filteredStores.length}
+            favorites={favorites}
+            onToggleFavorite={handleToggleFavorite}
           />
         </div>
       </main>

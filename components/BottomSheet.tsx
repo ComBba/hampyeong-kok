@@ -10,6 +10,8 @@ interface BottomSheetProps {
   selectedStore: Store | null;
   onSelectStore: (store: Store | null) => void;
   totalFiltered: number;
+  favorites?: string[];
+  onToggleFavorite?: (id: string) => void;
 }
 
 export default function BottomSheet({
@@ -17,6 +19,8 @@ export default function BottomSheet({
   selectedStore,
   onSelectStore,
   totalFiltered,
+  favorites = [],
+  onToggleFavorite,
 }: BottomSheetProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -79,6 +83,8 @@ export default function BottomSheet({
               store={selectedStore}
               isSelected={true}
               showDetails={true}
+              isFavorite={favorites.includes(selectedStore.id)}
+              onToggleFavorite={onToggleFavorite}
             />
           </div>
         ) : stores.length === 0 ? (
@@ -92,6 +98,8 @@ export default function BottomSheet({
               store={store}
               isSelected={false}
               onSelect={() => onSelectStore(store)}
+              isFavorite={favorites.includes(store.id)}
+              onToggleFavorite={onToggleFavorite}
             />
           ))
         )}

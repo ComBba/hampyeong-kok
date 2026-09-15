@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { StoreStatus, DistanceRadius, SortOption, UserLocation } from '@/types/store';
-import { ArrowUpDown, Compass } from 'lucide-react';
+import { ArrowUpDown, Compass, Heart } from 'lucide-react';
 
 interface FilterBarProps {
   towns: string[];
@@ -25,6 +25,9 @@ interface FilterBarProps {
   onSortOptionChange?: (sort: SortOption) => void;
   userLocation?: UserLocation | null;
   onLocateMe?: () => void;
+  favoritesCount?: number;
+  showFavoritesOnly?: boolean;
+  onToggleFavoritesOnly?: () => void;
 }
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -69,15 +72,37 @@ export default function FilterBar({
   onSortOptionChange,
   userLocation,
   onLocateMe,
+  favoritesCount = 0,
+  showFavoritesOnly = false,
+  onToggleFavoritesOnly,
 }: FilterBarProps) {
   return (
     <div className="space-y-2.5">
       {/* 1. Status Filter Pills */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar text-xs">
+        {favoritesCount > 0 && onToggleFavoritesOnly && (
+          <button
+            onClick={onToggleFavoritesOnly}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all border whitespace-nowrap flex-shrink-0 ${
+              showFavoritesOnly
+                ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                : 'bg-white text-rose-600 border-rose-200 hover:bg-rose-50'
+            }`}
+          >
+            <Heart className="w-3 h-3 fill-current" />
+            <span>단골</span>
+            <span className={`text-[11px] px-1.5 py-0.2 rounded-full ${
+              showFavoritesOnly ? 'bg-rose-700 text-white' : 'bg-rose-100 text-rose-700'
+            }`}>
+              {favoritesCount}
+            </span>
+          </button>
+        )}
+
         <button
           onClick={() => onStatusChange('available')}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all border whitespace-nowrap flex-shrink-0 ${
-            selectedStatus === 'available'
+            selectedStatus === 'available' && !showFavoritesOnly
               ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
               : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
           }`}
@@ -85,7 +110,7 @@ export default function FilterBar({
           <span className="w-2 h-2 rounded-full bg-emerald-400" />
           <span>사용 가능만</span>
           <span className={`text-[11px] px-1.5 py-0.2 rounded-full ${
-            selectedStatus === 'available' ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'
+            selectedStatus === 'available' && !showFavoritesOnly ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'
           }`}>
             {counts.available}
           </span>

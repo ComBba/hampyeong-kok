@@ -14,7 +14,8 @@ import {
   ExternalLink,
   Fuel,
   Clock,
-  Eye
+  Eye,
+  Heart
 } from 'lucide-react';
 
 interface StoreCardProps {
@@ -23,6 +24,8 @@ interface StoreCardProps {
   onSelect?: () => void;
   showDetails?: boolean;
   onViewRoadView?: (store: Store) => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: (id: string, e: React.MouseEvent) => void;
 }
 
 export default function StoreCard({
@@ -31,6 +34,8 @@ export default function StoreCard({
   onSelect,
   showDetails = false,
   onViewRoadView,
+  isFavorite = false,
+  onToggleFavorite,
 }: StoreCardProps) {
   const [copied, setCopied] = React.useState(false);
 
@@ -150,16 +155,33 @@ export default function StoreCard({
         )}
       </div>
 
-      {/* Store Name */}
-      <div className="flex items-baseline justify-between gap-2 mb-1">
-        <h3 className="text-base font-bold text-slate-900 tracking-tight">
-          {store.name}
-        </h3>
-        {store.regDate && (
-          <span className="text-[10px] text-slate-400 flex-shrink-0">
-            {store.regDate}
-          </span>
-        )}
+      {/* Store Name & Favorite Heart */}
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <h3 className="text-base font-bold text-slate-900 tracking-tight truncate">
+            {store.name}
+          </h3>
+          {store.regDate && (
+            <span className="text-[10px] text-slate-400 flex-shrink-0 hidden sm:inline">
+              {store.regDate}
+            </span>
+          )}
+        </div>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onToggleFavorite) onToggleFavorite(store.id, e);
+          }}
+          className={`p-1.5 rounded-full transition-all flex-shrink-0 ${
+            isFavorite
+              ? 'text-rose-500 bg-rose-50 hover:bg-rose-100'
+              : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100'
+          }`}
+          title={isFavorite ? '단골가게 해제' : '단골가게로 찜하기'}
+        >
+          <Heart className={`w-4 h-4 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}`} />
+        </button>
       </div>
 
       {/* Address */}

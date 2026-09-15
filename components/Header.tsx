@@ -2,12 +2,15 @@
 
 import React from 'react';
 import { MapPin, Map, List, Share2, Check } from 'lucide-react';
+import DDayBadge from './DDayBadge';
 
 interface HeaderProps {
   viewMode: 'map' | 'list';
   onViewModeChange: (mode: 'map' | 'list') => void;
   totalCount: number;
   availableCount: number;
+  onToggleSeniorMode?: () => void;
+  isSeniorMode?: boolean;
 }
 
 export default function Header({
@@ -15,6 +18,8 @@ export default function Header({
   onViewModeChange,
   totalCount,
   availableCount,
+  onToggleSeniorMode,
+  isSeniorMode = false,
 }: HeaderProps) {
   const [copied, setCopied] = React.useState(false);
 
@@ -62,6 +67,25 @@ export default function Header({
 
         {/* View Switcher & Actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* D-Day Countdown Badge */}
+          <DDayBadge />
+
+          {/* Senior Mode Toggle Button */}
+          {onToggleSeniorMode && (
+            <button
+              onClick={onToggleSeniorMode}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-bold text-xs border shadow-2xs transition-all ${
+                isSeniorMode
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
+              }`}
+              title="어르신 전용 큰글씨 쉬운 모드로 전환"
+            >
+              <span>👓</span>
+              <span>큰글씨</span>
+            </button>
+          )}
+
           {/* Mobile view toggle */}
           <div className="bg-slate-100 p-1 rounded-xl flex items-center shadow-inner">
             <button
