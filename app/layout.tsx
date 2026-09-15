@@ -2,7 +2,11 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://hampyeong-kok.vercel.app'),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL && !process.env.NEXT_PUBLIC_SITE_URL.includes('localhost')
+      ? process.env.NEXT_PUBLIC_SITE_URL
+      : 'https://hampyeong-kok.vercel.app'
+  ),
   title: "함평콕 | 2026 함평 민생회복지원금 50만원 가맹점 스마트 지도",
   description: "2026년 함평군 민생회복지원금 50만 원 선불카드 가맹점 1,028곳 완벽 정리! 4대 5일장, 면 지역 하나로마트 예외 안내 및 내 위치 기준 반경·거리순 길안내.",
   keywords: [
