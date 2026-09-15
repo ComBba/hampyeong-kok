@@ -127,10 +127,17 @@ export default function SeniorMode({
       {/* 1. Top Senior Mode Header */}
       <header className="bg-emerald-700 text-white p-4 sticky top-0 z-30 shadow-md">
         <div className="max-w-xl mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">👓</span>
+          <div className="flex items-center gap-2.5">
+            <img
+              src="/images/logo-symbol.png"
+              alt="함평콕"
+              className="w-10 h-10 object-contain bg-white rounded-2xl p-1 shadow-sm flex-shrink-0"
+            />
             <div>
-              <h1 className="text-lg font-extrabold tracking-tight">어르신 쉬운 모드</h1>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm">👓</span>
+                <h1 className="text-lg font-extrabold tracking-tight">어르신 쉬운 모드</h1>
+              </div>
               <p className="text-xs text-emerald-100 font-medium">
                 글씨가 크고 터치하기 편한 화면입니다
               </p>

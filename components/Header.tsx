@@ -48,20 +48,22 @@ export default function Header({
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
         {/* Logo & Brand */}
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-white shadow-sm flex-shrink-0">
-            <MapPin className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <h1 className="text-lg font-extrabold text-slate-900 tracking-tight">함평콕</h1>
-              <span className="px-1.5 py-0.5 text-[11px] font-semibold bg-emerald-100 text-emerald-800 rounded-md">
-                2026 민생지원금
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 truncate hidden sm:block">
-              총 {totalCount.toLocaleString()}곳 중 사용가능 {availableCount.toLocaleString()}곳
-            </p>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <a
+            href="/"
+            className="flex items-center gap-2 group flex-shrink-0"
+            title="함평콕 홈으로 이동"
+          >
+            <img
+              src="/images/logo.png"
+              alt="함평콕"
+              className="h-8 sm:h-9 w-auto object-contain transition-transform group-hover:scale-105"
+            />
+          </a>
+          <div className="min-w-0 hidden lg:block">
+            <span className="px-1.5 py-0.5 text-[11px] font-semibold bg-emerald-100 text-emerald-800 rounded-md">
+              2026 민생지원금
+            </span>
           </div>
         </div>
 

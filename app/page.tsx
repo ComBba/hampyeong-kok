@@ -404,11 +404,12 @@ export default function Home() {
           <div className="absolute top-2.5 left-2.5 right-2.5 z-20 md:hidden flex flex-col gap-1.5 pointer-events-none">
             {/* 1. Integrated Search & Action Row */}
             <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-lg border border-slate-200/90 px-3 py-2 flex items-center gap-2 pointer-events-auto">
-              <div className="flex items-center gap-1 flex-shrink-0 text-emerald-700 font-extrabold text-sm tracking-tight">
-                <div className="w-6 h-6 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-2xs">
-                  <MapPin className="w-3.5 h-3.5" />
-                </div>
-                <span>함평콕</span>
+              <div className="flex items-center flex-shrink-0">
+                <img
+                  src="/images/logo.png"
+                  alt="함평콕"
+                  className="h-6 sm:h-7 w-auto object-contain flex-shrink-0"
+                />
               </div>
 
               <div className="flex-1 min-w-0 relative flex items-center">
