@@ -13,10 +13,11 @@ interface SearchBarProps {
 
 const QUICK_TAGS = [
   { label: '하나로마트', query: '하나로마트' },
-  { label: '주유소', query: '주유소' },
+  { label: '농자재·철물', query: '농자재' },
+  { label: '주유소(면세유)', query: '주유소' },
   { label: '약국', query: '약국' },
-  { label: '카페', query: '카페' },
   { label: '식당/맛집', query: '식당' },
+  { label: '카페', query: '카페' },
   { label: '편의점', query: '편의점' },
 ];
 

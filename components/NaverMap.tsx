@@ -58,6 +58,7 @@ export default function NaverMap({
   const [isTraffic, setIsTraffic] = useState(false);
   const [showPanorama, setShowPanorama] = useState(false);
   const [panoramaStore, setPanoramaStore] = useState<Store | null>(null);
+  const [currentZoom, setCurrentZoom] = useState<number>(DEFAULT_ZOOM);
 
   const clientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID || 'orbr0ka7bw';
 
@@ -121,6 +122,11 @@ export default function NaverMap({
       window.naver.maps.Event.addListener(map, 'click', () => {
         onSelectStore(null);
       });
+
+      // Zoom listener for smooth clustering
+      window.naver.maps.Event.addListener(map, 'zoom_changed', () => {
+        setCurrentZoom(map.getZoom());
+      });
     } catch (err: any) {
       console.error("Map initialization error:", err);
       setLoadError("지도 초기화 오류: " + err.message);
@@ -158,7 +164,7 @@ export default function NaverMap({
     }
   };
 
-  // 5. Render Markers for Stores
+  // 5. Render Markers with Clustering (currentZoom < 15) and Individual Pins (currentZoom >= 15)
   useEffect(() => {
     if (!isLoaded || !naverMapInstance.current) return;
     const map = naverMapInstance.current;
@@ -171,12 +177,8 @@ export default function NaverMap({
 
     const newMarkers: { [id: string]: any } = {};
 
-    stores.forEach((store) => {
-      if (!store.lat || !store.lng) return;
-
-      const isSelected = selectedStore?.id === store.id;
-
-      // Pin Color
+    // Helper: create individual store pin marker
+    const createStoreMarker = (store: Store, isSelected: boolean) => {
       let pinColor = '#16a34a'; // green
       if (store.status === 'unavailable') {
         pinColor = '#dc2626'; // red
@@ -225,11 +227,164 @@ export default function NaverMap({
         onSelectStore(store);
       });
 
-      newMarkers[store.id] = marker;
-    });
+      return marker;
+    };
+
+    // Helper: create cluster badge marker
+    const createClusterMarker = (
+      clusterStores: Store[],
+      avgLat: number,
+      avgLng: number,
+      minLat: number,
+      maxLat: number,
+      minLng: number,
+      maxLng: number
+    ) => {
+      const count = clusterStores.length;
+      let size = 38;
+      let fontSize = 12;
+
+      if (count >= 200) {
+        size = 54;
+        fontSize = 15;
+      } else if (count >= 50) {
+        size = 46;
+        fontSize = 14;
+      } else if (count >= 10) {
+        size = 40;
+        fontSize = 13;
+      }
+
+      const clusterContent = `
+        <div class="hampyeong-cluster-marker" style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: ${size}px;
+          height: ${size}px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+          border: 3px solid #ffffff;
+          box-shadow: 0 4px 12px rgba(5, 150, 105, 0.45);
+          color: #ffffff;
+          font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+          font-size: ${fontSize}px;
+          font-weight: 800;
+          cursor: pointer;
+          user-select: none;
+          letter-spacing: -0.5px;
+        ">
+          <span>${count}</span>
+        </div>
+      `;
+
+      const marker = new window.naver.maps.Marker({
+        position: new window.naver.maps.LatLng(avgLat, avgLng),
+        map: map,
+        title: `${count}개 가맹점 밀집 구역 (클릭하여 확대)`,
+        icon: {
+          content: clusterContent,
+          size: new window.naver.maps.Size(size, size),
+          anchor: new window.naver.maps.Point(size / 2, size / 2),
+        },
+        zIndex: 25,
+      });
+
+      window.naver.maps.Event.addListener(marker, 'click', () => {
+        if (minLat === maxLat && minLng === maxLng) {
+          map.setCenter(new window.naver.maps.LatLng(avgLat, avgLng));
+          map.setZoom(Math.min(18, currentZoom + 2));
+        } else {
+          const bounds = new window.naver.maps.LatLngBounds(
+            new window.naver.maps.LatLng(minLat, minLng),
+            new window.naver.maps.LatLng(maxLat, maxLng)
+          );
+          map.fitBounds(bounds, { margin: 60 });
+        }
+      });
+
+      return marker;
+    };
+
+    if (currentZoom < 15) {
+      // Dynamic grid cell size based on current zoom level
+      const scale = Math.pow(2, 13 - currentZoom);
+      const cellLat = 0.018 * scale;
+      const cellLng = 0.024 * scale;
+
+      const bins: {
+        [key: string]: {
+          stores: Store[];
+          sumLat: number;
+          sumLng: number;
+          minLat: number;
+          maxLat: number;
+          minLng: number;
+          maxLng: number;
+        };
+      } = {};
+
+      stores.forEach((store) => {
+        if (!store.lat || !store.lng) return;
+        const gridY = Math.floor(store.lat / cellLat);
+        const gridX = Math.floor(store.lng / cellLng);
+        const key = `${gridY}_${gridX}`;
+
+        if (!bins[key]) {
+          bins[key] = {
+            stores: [],
+            sumLat: 0,
+            sumLng: 0,
+            minLat: store.lat,
+            maxLat: store.lat,
+            minLng: store.lng,
+            maxLng: store.lng,
+          };
+        }
+
+        bins[key].stores.push(store);
+        bins[key].sumLat += store.lat;
+        bins[key].sumLng += store.lng;
+        bins[key].minLat = Math.min(bins[key].minLat, store.lat);
+        bins[key].maxLat = Math.max(bins[key].maxLat, store.lat);
+        bins[key].minLng = Math.min(bins[key].minLng, store.lng);
+        bins[key].maxLng = Math.max(bins[key].maxLng, store.lng);
+      });
+
+      // Render clusters or single pins
+      Object.entries(bins).forEach(([key, bin]) => {
+        if (bin.stores.length === 1) {
+          const s = bin.stores[0];
+          newMarkers[s.id] = createStoreMarker(s, selectedStore?.id === s.id);
+        } else {
+          const avgLat = bin.sumLat / bin.stores.length;
+          const avgLng = bin.sumLng / bin.stores.length;
+          newMarkers[`cluster_${key}`] = createClusterMarker(
+            bin.stores,
+            avgLat,
+            avgLng,
+            bin.minLat,
+            bin.maxLat,
+            bin.minLng,
+            bin.maxLng
+          );
+        }
+      });
+
+      // Ensure currently selected store is always rendered as an individual pin
+      if (selectedStore && selectedStore.lat && selectedStore.lng && !newMarkers[selectedStore.id]) {
+        newMarkers[selectedStore.id] = createStoreMarker(selectedStore, true);
+      }
+    } else {
+      // Zoom >= 15: Render all individual pins
+      stores.forEach((store) => {
+        if (!store.lat || !store.lng) return;
+        newMarkers[store.id] = createStoreMarker(store, selectedStore?.id === store.id);
+      });
+    }
 
     markersRef.current = newMarkers;
-  }, [isLoaded, stores, selectedStore, onSelectStore]);
+  }, [isLoaded, stores, selectedStore, onSelectStore, currentZoom]);
 
   // 6. Focus on selected store
   useEffect(() => {

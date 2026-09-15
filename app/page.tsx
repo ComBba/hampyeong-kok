@@ -9,6 +9,8 @@ import FilterBar from '@/components/FilterBar';
 import StoreCard from '@/components/StoreCard';
 import NaverMap from '@/components/NaverMap';
 import BottomSheet from '@/components/BottomSheet';
+import MarketBanner from '@/components/MarketBanner';
+import HanaroMartAlert from '@/components/HanaroMartAlert';
 import { 
   Sparkles, 
   MapPin, 
@@ -63,6 +65,8 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+
+  const isHanaroRelated = searchQuery.includes('하나로') || selectedCategory === '농협·하나로마트';
 
   // GPS Location handler
   const handleLocateMe = useCallback(() => {
@@ -209,6 +213,23 @@ export default function Home() {
               onSortOptionChange={setSortOption}
               userLocation={userLocation}
               onLocateMe={handleLocateMe}
+            />
+          </div>
+
+          {/* Market & Hanaro Alert Banners (Desktop Sidebar) */}
+          <div className="px-3.5 py-2.5 space-y-2 flex-shrink-0 bg-slate-50/50 border-b border-slate-100">
+            {isHanaroRelated && (
+              <HanaroMartAlert
+                onFilterAvailableOnly={() => {
+                  setSelectedStatus('available');
+                  setSearchQuery('하나로마트');
+                }}
+                isFilteredToAvailable={selectedStatus === 'available'}
+              />
+            )}
+            <MarketBanner
+              selectedTown={selectedTown}
+              onSelectTown={(town) => setSelectedTown(town)}
             />
           </div>
 
@@ -376,7 +397,7 @@ export default function Home() {
               })}
 
               {/* Popular Quick Search Tags */}
-              {['하나로마트', '주유소', '약국', '식당'].map((tag) => (
+              {['하나로마트', '농자재', '주유소', '약국', '식당'].map((tag) => (
                 <button
                   key={tag}
                   onClick={() => setSearchQuery(searchQuery === tag ? '' : tag)}
@@ -389,6 +410,24 @@ export default function Home() {
                   #{tag}
                 </button>
               ))}
+            </div>
+
+            {/* Mobile Local Context Banners (Dismissible) */}
+            <div className="pointer-events-auto">
+              {isHanaroRelated ? (
+                <HanaroMartAlert
+                  onFilterAvailableOnly={() => {
+                    setSelectedStatus('available');
+                    setSearchQuery('하나로마트');
+                  }}
+                  isFilteredToAvailable={selectedStatus === 'available'}
+                />
+              ) : (
+                <MarketBanner
+                  selectedTown={selectedTown}
+                  onSelectTown={(town) => setSelectedTown(town)}
+                />
+              )}
             </div>
           </div>
 
