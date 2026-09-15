@@ -239,14 +239,14 @@ export default function NaverMap({
 
     // Adaptive cluster radius based on zoom level
     const getClusterRadius = (zoom: number): number => {
-      if (zoom <= 11) return 2200;
-      if (zoom === 12) return 1200;
-      if (zoom === 13) return 700; // 함평읍 시가지 전체가 하나로 자연스럽게 묶임
-      if (zoom === 14) return 350; // 함평시장/군청/터미널 등 주요 구역별 분할
-      if (zoom === 15) return 150; // 골목 및 상권 블록별 분할
-      if (zoom === 16) return 65;  // 시장 골목 상설 매장 묶음
-      if (zoom === 17) return 25;  // 동일 건물/초밀집 매장 묶음
-      return 10;
+      if (zoom <= 11) return 2500;
+      if (zoom === 12) return 1600;
+      if (zoom === 13) return 1000; // 함평읍 시가지 전체가 깔끔하게 560여 개 단일 클러스터로 묶임
+      if (zoom === 14) return 500;  // 함평시장/군청/터미널 등 3대 중심 상권 구역별 점진적 분할
+      if (zoom === 15) return 220;  // 골목 및 시장 상가동 묶음 유지 (~100개 단위)
+      if (zoom === 16) return 90;   // 시장 골목 상설 매장 묶음, 대로변 개별 핀 전개
+      if (zoom === 17) return 35;   // 동일 건물/초밀집 매장만 묶음
+      return 12;
     };
 
     // Helper: create cluster badge marker
@@ -317,12 +317,12 @@ export default function NaverMap({
       window.naver.maps.Event.addListener(marker, 'click', () => {
         // 동일 건물(시장 등)에 20m 이내로 밀집된 경우: 최대 확대 후 첫 번째 매장 정보 바텀시트 호출
         const spanDist = quickDistanceMeters(minLat, minLng, maxLat, maxLng);
-        if (spanDist < 20 && currentZoom >= 16) {
+        if (spanDist < 20 && map.getZoom() >= 16) {
           map.panTo(new window.naver.maps.LatLng(avgLat, avgLng), { duration: 250 });
           onSelectStore(clusterStores[0]);
         } else {
           // 점진적 단계 확대 (+2레벨씩 부드럽게 확대되어 중간 계층 클러스터링 유지)
-          const nextZoom = Math.min(currentZoom + 2, 18);
+          const nextZoom = Math.min(map.getZoom() + 2, 18);
           map.panTo(new window.naver.maps.LatLng(avgLat, avgLng), { duration: 300 });
           map.setZoom(nextZoom, true);
         }
