@@ -133,9 +133,10 @@ export default function NaverMap({
         onSelectStore(null);
       });
 
-      // Zoom listener for smooth clustering
-      window.naver.maps.Event.addListener(map, 'zoom_changed', () => {
-        setCurrentZoom(map.getZoom());
+      // High-performance clustering: update only on map idle (when panning/zooming finishes)
+      window.naver.maps.Event.addListener(map, 'idle', () => {
+        const roundedZoom = Math.round(map.getZoom());
+        setCurrentZoom((prev) => (prev !== roundedZoom ? roundedZoom : prev));
       });
     } catch (err: any) {
       console.error("Map initialization error:", err);
@@ -386,9 +387,17 @@ export default function NaverMap({
       return marker;
     };
 
+    // Fast squared distance helper in meters^2 (avoids costly Math.sqrt in hot loop)
+    const quickDistanceSq = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+      const dLat = (lat2 - lat1) * 111000;
+      const dLng = (lng2 - lng1) * 91000;
+      return dLat * dLat + dLng * dLng;
+    };
+
     // Distance-based Centroid Clustering (줌 17까지 다단계 클러스터링 적용)
     if (currentZoom <= 17) {
       const radius = getClusterRadius(currentZoom);
+      const radiusSq = radius * radius;
       const clusters: {
         stores: Store[];
         centerLat: number;
@@ -406,12 +415,12 @@ export default function NaverMap({
         const sLng = store.lng!;
 
         let bestCluster: (typeof clusters)[0] | null = null;
-        let minDistance = radius;
+        let minDistanceSq = radiusSq;
 
         for (const c of clusters) {
-          const dist = quickDistanceMeters(c.centerLat, c.centerLng, sLat, sLng);
-          if (dist < minDistance) {
-            minDistance = dist;
+          const distSq = quickDistanceSq(c.centerLat, c.centerLng, sLat, sLng);
+          if (distSq < minDistanceSq) {
+            minDistanceSq = distSq;
             bestCluster = c;
           }
         }
@@ -690,6 +699,74 @@ export default function NaverMap({
                 <span>✕ 전체지도</span>
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Floating Store Detail Card on Map (PC Pin Click Interaction) */}
+      {selectedStore && (
+        <div className="hidden md:block absolute top-4 left-4 z-30 max-w-sm w-88 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200 p-4 animate-in fade-in slide-in-from-top-3 duration-200">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                {selectedStore.status === 'available' ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    🟢 사용 가능 (50만원 선불카드)
+                  </span>
+                ) : selectedStore.status === 'unavailable' ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                    🔴 사용 불가 (매출 30억 초과)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                    🟡 가맹 확인 필요
+                  </span>
+                )}
+                <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                  {selectedStore.category}
+                </span>
+              </div>
+              <h3 className="text-base font-extrabold text-slate-900 leading-snug truncate">
+                {selectedStore.name}
+              </h3>
+            </div>
+            <button
+              onClick={() => onSelectStore(null)}
+              className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              title="닫기"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-600 space-y-1.5 mb-3">
+            <div className="flex items-start gap-1.5">
+              <span className="text-slate-400 flex-shrink-0">📍</span>
+              <span className="leading-relaxed">{selectedStore.roadAddress || selectedStore.address}</span>
+            </div>
+            {selectedStore.reason && selectedStore.status !== 'available' && (
+              <div className="flex items-start gap-1.5 text-rose-600 bg-rose-50 p-2 rounded-xl text-[11px] leading-relaxed font-medium">
+                <span>⚠️</span>
+                <span>{selectedStore.reason}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+            <a
+              href={`https://map.naver.com/v5/search/${encodeURIComponent(selectedStore.name + ' ' + selectedStore.address)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-sm transition-all text-center"
+            >
+              <span>네이버 길찾기</span>
+            </a>
+            <button
+              onClick={() => openRoadviewForStore(selectedStore)}
+              className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all"
+            >
+              <span>거리뷰</span>
+            </button>
           </div>
         </div>
       )}

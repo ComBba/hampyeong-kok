@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import storesDataRaw from '@/public/data/stores.json';
 import { Store, StoreStatus, UserLocation, DistanceRadius, SortOption } from '@/types/store';
 import Header from '@/components/Header';
@@ -72,6 +72,17 @@ export default function Home() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [isSeniorMode, setIsSeniorMode] = useState(false);
+  const storeRefs = useRef<{ [id: string]: HTMLDivElement | null }>({});
+
+  // Auto-scroll to selected store in the sidebar list (both PC and mobile list view)
+  useEffect(() => {
+    if (selectedStore && storeRefs.current[selectedStore.id]) {
+      storeRefs.current[selectedStore.id]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [selectedStore]);
 
   // Load favorites from localStorage
   useEffect(() => {
@@ -260,8 +271,10 @@ export default function Home() {
       <main className="flex-1 relative flex flex-col md:flex-row overflow-hidden">
         {/* Left Side Panel on Desktop / Full List view on Mobile */}
         <div
-          className={`w-full md:w-[420px] lg:w-[460px] md:border-r border-slate-200 bg-white z-10 flex flex-col h-full shadow-sm ${
-            viewMode === 'map' ? 'hidden md:flex' : 'flex'
+          className={`h-full bg-white z-10 flex flex-col shadow-sm transition-all duration-200 ${
+            viewMode === 'list'
+              ? 'w-full md:max-w-4xl lg:max-w-5xl md:mx-auto md:border-x border-slate-200 flex'
+              : 'hidden md:flex w-full md:w-[420px] lg:w-[460px] md:border-r border-slate-200'
           }`}
         >
           {/* Search & Filter Section */}
@@ -362,19 +375,20 @@ export default function Home() {
               </div>
             ) : (
               filteredStores.map((store) => (
-                <StoreCard
-                  key={store.id}
-                  store={store}
-                  isSelected={selectedStore?.id === store.id}
-                  isFavorite={favorites.includes(store.id)}
-                  onToggleFavorite={handleToggleFavorite}
-                  onSelect={() => {
-                    setSelectedStore(store);
-                    if (viewMode === 'list' && window.innerWidth < 768) {
-                      setViewMode('map');
-                    }
-                  }}
-                />
+                <div key={store.id} ref={(el) => { storeRefs.current[store.id] = el; }}>
+                  <StoreCard
+                    store={store}
+                    isSelected={selectedStore?.id === store.id}
+                    isFavorite={favorites.includes(store.id)}
+                    onToggleFavorite={handleToggleFavorite}
+                    onSelect={() => {
+                      setSelectedStore(store);
+                      if (viewMode === 'list') {
+                        setViewMode('map');
+                      }
+                    }}
+                  />
+                </div>
               ))
             )}
           </div>
@@ -383,7 +397,7 @@ export default function Home() {
         {/* Right Area: Map View Container */}
         <div
           className={`flex-1 relative h-full w-full ${
-            viewMode === 'list' ? 'hidden md:block' : 'block'
+            viewMode === 'list' ? 'hidden' : 'block'
           }`}
         >
           {/* Mobile Top Floating Integrated Header Bar (Ultra-compact ~80px) */}
