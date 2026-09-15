@@ -60,35 +60,53 @@ export default function StoreCard({
     }
   };
 
-  // Naver Map Navigation / Search Link
+  // 1. 네이버 지도 실시간 길찾기 (좌표 직접 연동 방식 - 검색 실패 원천 차단)
   const openNaverMap = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const query = encodeURIComponent(`${store.name} ${store.address}`);
-    window.open(`https://map.naver.com/v5/search/${query}`, '_blank');
+    if (store.lat && store.lng) {
+      // 네이버 지도 길찾기 공식 URL (목적지 좌표 + 상호명 직접 전달)
+      const navUrl = `https://map.naver.com/p/directions/-,/${store.lng},${store.lat},${encodeURIComponent(store.name)},,/-/car`;
+      
+      // 모바일 기기 접속 시 네이버 지도 앱 내비 자동 호출 시도
+      const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        window.location.href = `nmap://route/car?dlat=${store.lat}&dlng=${store.lng}&dname=${encodeURIComponent(store.name)}&appname=hampyeong-kok`;
+        setTimeout(() => {
+          window.open(navUrl, '_blank');
+        }, 600);
+        return;
+      }
+      window.open(navUrl, '_blank');
+    } else {
+      // 좌표가 없을 경우의 대체 검색: 상호명 + 읍면만 깔끔하게 검색
+      const q = encodeURIComponent(`${store.name} ${store.town || '함평'}`);
+      window.open(`https://map.naver.com/p/search/${q}`, '_blank');
+    }
   };
 
-  // Naver Place Live Status & Reviews Link
+  // 2. 네이버 스마트플레이스 실시간 영업/리뷰/전화번호 확인
   const openNaverPlace = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const query = encodeURIComponent(`${store.name} 함평`);
-    window.open(`https://m.place.naver.com/place/list?query=${query}`, '_blank');
+    // 주소 전체를 붙이지 않고 [상호명 + 읍면]으로 검색하여 네이버 플레이스가 100% 매칭되도록 처리
+    const query = encodeURIComponent(`${store.name} ${store.town || '함평'}`);
+    window.open(`https://map.naver.com/p/search/${query}`, '_blank');
   };
 
-  // Gas Station Live Price Link (Naver Map Gas Station View)
+  // 3. 주유소 실시간 유가 확인 (오피넷/네이버 유가 탭)
   const openGasPrice = (e: React.MouseEvent) => {
     e.stopPropagation();
     const query = encodeURIComponent(`${store.name} 주유소`);
-    window.open(`https://map.naver.com/v5/search/${query}`, '_blank');
+    window.open(`https://map.naver.com/p/search/${query}`, '_blank');
   };
 
-  // Road View
+  // 4. 거리뷰(로드뷰)
   const handleRoadView = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onViewRoadView) {
       onViewRoadView(store);
     } else {
-      const query = encodeURIComponent(`${store.name} ${store.address}`);
-      window.open(`https://map.naver.com/v5/search/${query}`, '_blank');
+      const query = encodeURIComponent(`${store.name} ${store.town || '함평'}`);
+      window.open(`https://map.naver.com/p/search/${query}`, '_blank');
     }
   };
 
@@ -150,7 +168,7 @@ export default function StoreCard({
       {/* Reason Box */}
       <div className={`p-2.5 rounded-xl border flex items-start gap-1.5 text-xs mb-3 ${
         store.status === 'unavailable' 
-          ? 'bg-rose-50 border-rose-100 text-rose-800'
+          ? 'bg-rose-50 border-rose-100 text-rose-800 font-medium'
           : store.status === 'verify'
           ? 'bg-amber-50 border-amber-100 text-amber-800'
           : 'bg-slate-50 border-slate-100 text-slate-700'
@@ -178,10 +196,11 @@ export default function StoreCard({
 
       {/* Action Buttons Row */}
       <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
-        {/* 1. Naver Navigation */}
+        {/* 1. Naver Navigation with exact coordinates */}
         <button
           onClick={openNaverMap}
           className="flex-1 min-w-[130px] flex items-center justify-center gap-1.5 py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors shadow-2xs"
+          title="네이버 지도로 바로 길안내 시작"
         >
           <Navigation className="w-3.5 h-3.5" />
           <span>네이버 지도 길찾기</span>
@@ -191,7 +210,7 @@ export default function StoreCard({
         <button
           onClick={openNaverPlace}
           className="flex items-center gap-1 py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors"
-          title="영업시간, 휴무일, 전화번호, 리뷰 확인"
+          title="영업시간, 휴무일, 전화번호, 방문자리뷰 확인"
         >
           <Clock className="w-3.5 h-3.5 text-slate-500" />
           <span>영업·리뷰</span>
