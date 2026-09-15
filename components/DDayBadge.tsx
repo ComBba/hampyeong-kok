@@ -5,7 +5,7 @@ import { getDDayInfo, DDayInfo } from '@/lib/d-day';
 import { Clock, Info, X, AlertCircle } from 'lucide-react';
 
 export default function DDayBadge() {
-  const [dDay, setDDay] = useState<DDayInfo | null>(null);
+  const [dDay, setDDay] = useState<DDayInfo | null>(() => getDDayInfo('2026-12-31'));
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
