@@ -86,7 +86,7 @@ export default function StoreCard({
     const query = encodeURIComponent(`${store.name} ${store.town || '함평'}`);
     const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const placeUrl = isMobile
-      ? `https://m.place.naver.com/place/list?query=${query}`
+      ? `https://m.search.naver.com/search.naver?query=${query}`
       : `https://map.naver.com/p/search/${query}`;
     window.open(placeUrl, '_blank');
   };
@@ -95,7 +95,11 @@ export default function StoreCard({
   const openGasPrice = (e: React.MouseEvent) => {
     e.stopPropagation();
     const query = encodeURIComponent(`${store.name} 주유소`);
-    window.open(`https://map.naver.com/p/search/${query}`, '_blank');
+    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const gasUrl = isMobile
+      ? `https://m.search.naver.com/search.naver?query=${query}`
+      : `https://map.naver.com/p/search/${query}`;
+    window.open(gasUrl, '_blank');
   };
 
   // 4. 거리뷰
