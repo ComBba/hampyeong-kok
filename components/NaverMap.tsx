@@ -671,15 +671,13 @@ export default function NaverMap({
       {/* Naver Map DOM Container */}
       <div ref={mapRef} className="w-full h-full" />
 
-      {/* Floating Active Focus Badge with 1-Tap Reset */}
-      {(selectedTown !== 'all' || isMarketFiltered || searchQuery) && (
-        <div className="absolute top-28 md:top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
+      {/* Floating Active Focus Badge with 1-Tap Reset (Shown when filtering by town or search query without market banner) */}
+      {!isMarketFiltered && ((selectedTown && selectedTown !== 'all') || (searchQuery && searchQuery.trim().length > 0)) && (
+        <div className="absolute top-24 md:top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto animate-in fade-in">
           <div className="bg-slate-900/90 backdrop-blur-md text-white px-3.5 py-1.5 rounded-full shadow-lg border border-slate-700/80 flex items-center gap-2 text-xs font-semibold">
-            <span className={`w-2 h-2 rounded-full ${isMarketFiltered ? 'bg-orange-400 animate-ping' : 'bg-emerald-400 animate-pulse'}`}></span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
             <span>
-              {isMarketFiltered
-                ? `${marketName || selectedTown} 5일장 (${stores.length}곳)`
-                : selectedTown && selectedTown !== 'all'
+              {selectedTown && selectedTown !== 'all'
                 ? `${selectedTown} (${stores.length}곳)`
                 : `'${searchQuery}' (${stores.length}곳)`}
             </span>
