@@ -60,14 +60,11 @@ export default function StoreCard({
     }
   };
 
-  // 1. 네이버 지도 실시간 길찾기 (좌표 직접 연동 방식 - 검색 실패 원천 차단)
+  // 1. 네이버 지도 실시간 길찾기 (좌표 직접 전달)
   const openNaverMap = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (store.lat && store.lng) {
-      // 네이버 지도 길찾기 공식 URL (목적지 좌표 + 상호명 직접 전달)
       const navUrl = `https://map.naver.com/p/directions/-,/${store.lng},${store.lat},${encodeURIComponent(store.name)},,/-/car`;
-      
-      // 모바일 기기 접속 시 네이버 지도 앱 내비 자동 호출 시도
       const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       if (isMobile) {
         window.location.href = `nmap://route/car?dlat=${store.lat}&dlng=${store.lng}&dname=${encodeURIComponent(store.name)}&appname=hampyeong-kok`;
@@ -78,28 +75,30 @@ export default function StoreCard({
       }
       window.open(navUrl, '_blank');
     } else {
-      // 좌표가 없을 경우의 대체 검색: 상호명 + 읍면만 깔끔하게 검색
       const q = encodeURIComponent(`${store.name} ${store.town || '함평'}`);
       window.open(`https://map.naver.com/p/search/${q}`, '_blank');
     }
   };
 
-  // 2. 네이버 스마트플레이스 실시간 영업/리뷰/전화번호 확인
+  // 2. 네이버 스마트플레이스 실시간 영업시간·휴무일·리뷰 확인
   const openNaverPlace = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // 주소 전체를 붙이지 않고 [상호명 + 읍면]으로 검색하여 네이버 플레이스가 100% 매칭되도록 처리
     const query = encodeURIComponent(`${store.name} ${store.town || '함평'}`);
-    window.open(`https://map.naver.com/p/search/${query}`, '_blank');
+    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const placeUrl = isMobile
+      ? `https://m.place.naver.com/place/list?query=${query}`
+      : `https://map.naver.com/p/search/${query}`;
+    window.open(placeUrl, '_blank');
   };
 
-  // 3. 주유소 실시간 유가 확인 (오피넷/네이버 유가 탭)
+  // 3. 주유소 실시간 유가 확인 (오피넷/네이버)
   const openGasPrice = (e: React.MouseEvent) => {
     e.stopPropagation();
     const query = encodeURIComponent(`${store.name} 주유소`);
     window.open(`https://map.naver.com/p/search/${query}`, '_blank');
   };
 
-  // 4. 거리뷰(로드뷰)
+  // 4. 거리뷰
   const handleRoadView = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onViewRoadView) {
@@ -166,7 +165,7 @@ export default function StoreCard({
       </div>
 
       {/* Reason Box */}
-      <div className={`p-2.5 rounded-xl border flex items-start gap-1.5 text-xs mb-3 ${
+      <div className={`p-2.5 rounded-xl border flex items-start gap-1.5 text-xs mb-2.5 ${
         store.status === 'unavailable' 
           ? 'bg-rose-50 border-rose-100 text-rose-800 font-medium'
           : store.status === 'verify'
@@ -177,9 +176,9 @@ export default function StoreCard({
         <span className="leading-snug">{store.reason}</span>
       </div>
 
-      {/* Special Feature: Gas Station Live Price Banner */}
+      {/* Special Feature 1: Gas Station Live Price Banner */}
       {store.isGasStation && (
-        <div className="mb-3 p-2 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl flex items-center justify-between gap-2">
+        <div className="mb-2.5 p-2 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-xs text-blue-900 font-semibold">
             <Fuel className="w-4 h-4 text-blue-600" />
             <span>실시간 기름값 (휘발유/경유)</span>
@@ -194,29 +193,34 @@ export default function StoreCard({
         </div>
       )}
 
-      {/* Action Buttons Row */}
-      <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
-        {/* 1. Naver Navigation with exact coordinates */}
+      {/* Special Feature 2: Prominent Naver SmartPlace Business Hours & Info Callout */}
+      <div className="mb-3 p-2 rounded-xl bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/70 hover:border-emerald-200 transition-colors flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-xs text-slate-700">
+          <Clock className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+          <span className="font-medium">영업시간 · 휴무일 · 리뷰</span>
+        </div>
+        <button
+          onClick={openNaverPlace}
+          className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 bg-white px-2 py-1 rounded-lg border border-emerald-200 shadow-2xs"
+        >
+          <span>스마트플레이스 확인</span>
+          <ExternalLink className="w-2.5 h-2.5" />
+        </button>
+      </div>
+
+      {/* Bottom Action Buttons Row */}
+      <div className="flex items-center gap-1.5 pt-1 border-t border-slate-100">
+        {/* Naver Navigation */}
         <button
           onClick={openNaverMap}
-          className="flex-1 min-w-[130px] flex items-center justify-center gap-1.5 py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors shadow-2xs"
+          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors shadow-2xs"
           title="네이버 지도로 바로 길안내 시작"
         >
           <Navigation className="w-3.5 h-3.5" />
-          <span>네이버 지도 길찾기</span>
+          <span>길찾기</span>
         </button>
 
-        {/* 2. Naver Place Live Status & Reviews */}
-        <button
-          onClick={openNaverPlace}
-          className="flex items-center gap-1 py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors"
-          title="영업시간, 휴무일, 전화번호, 방문자리뷰 확인"
-        >
-          <Clock className="w-3.5 h-3.5 text-slate-500" />
-          <span>영업·리뷰</span>
-        </button>
-
-        {/* 3. Road View */}
+        {/* Road View */}
         <button
           onClick={handleRoadView}
           className="flex items-center gap-1 py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors"
@@ -226,7 +230,7 @@ export default function StoreCard({
           <span>거리뷰</span>
         </button>
 
-        {/* 4. Copy Address */}
+        {/* Copy Address */}
         <button
           onClick={copyAddress}
           className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1"
