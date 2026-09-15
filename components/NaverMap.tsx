@@ -56,7 +56,7 @@ export default function NaverMap({
   const [showPanorama, setShowPanorama] = useState(false);
   const [panoramaStore, setPanoramaStore] = useState<Store | null>(null);
 
-  const clientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID;
+  const clientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID || 'orbr0ka7bw';
 
   // 1. Script Loading
   useEffect(() => {
