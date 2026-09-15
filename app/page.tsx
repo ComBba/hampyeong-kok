@@ -13,6 +13,7 @@ import MarketBanner from '@/components/MarketBanner';
 import HanaroMartAlert from '@/components/HanaroMartAlert';
 import SeniorMode from '@/components/SeniorMode';
 import DDayBadge from '@/components/DDayBadge';
+import { getTodayMarket } from '@/lib/market-days';
 import { 
   Sparkles, 
   MapPin, 
@@ -96,6 +97,27 @@ export default function Home() {
       }
       return next;
     });
+  }, []);
+
+  const todayMarket = useMemo(() => getTodayMarket(), []);
+  const isMarketFiltered = !!todayMarket && selectedTown === todayMarket.town;
+  const marketName = todayMarket?.name || '';
+
+  const handleSelectTown = useCallback((town: string) => {
+    setSelectedTown(town);
+    if (town !== 'all') {
+      setSelectedRadius('all'); // Release radius restriction so town stores aren't blocked by user GPS
+    }
+  }, []);
+
+  const handleResetFilters = useCallback(() => {
+    setSelectedTown('all');
+    setSearchQuery('');
+    setSelectedCategory('all');
+    setSelectedStatus('available');
+    setSelectedRadius('all');
+    setShowFavoritesOnly(false);
+    setSelectedStore(null);
   }, []);
 
   const isHanaroRelated = searchQuery.includes('하나로') || selectedCategory === '농협·하나로마트';
@@ -255,7 +277,7 @@ export default function Home() {
               towns={storesData.towns}
               categories={storesData.categories}
               selectedTown={selectedTown}
-              onTownChange={setSelectedTown}
+              onTownChange={handleSelectTown}
               selectedCategory={selectedCategory}
               onCategoryChange={setSelectedCategory}
               selectedStatus={selectedStatus}
@@ -512,7 +534,7 @@ export default function Home() {
               ) : (
                 <MarketBanner
                   selectedTown={selectedTown}
-                  onSelectTown={(town) => setSelectedTown(town)}
+                  onSelectTown={handleSelectTown}
                 />
               )}
             </div>
@@ -527,6 +549,11 @@ export default function Home() {
             onLocateMe={handleLocateMe}
             isLocating={isLocating}
             radius={selectedRadius === 'all' ? null : selectedRadius}
+            selectedTown={selectedTown}
+            searchQuery={searchQuery}
+            isMarketFiltered={isMarketFiltered}
+            marketName={marketName}
+            onResetFilters={handleResetFilters}
           />
 
           {/* Mobile Slim Bottom Sheet */}

@@ -20,6 +20,11 @@ interface NaverMapProps {
   onLocateMe: () => void;
   isLocating: boolean;
   radius?: number | null;
+  selectedTown?: string;
+  searchQuery?: string;
+  isMarketFiltered?: boolean;
+  marketName?: string;
+  onResetFilters?: () => void;
 }
 
 declare global {
@@ -39,6 +44,11 @@ export default function NaverMap({
   onLocateMe,
   isLocating,
   radius,
+  selectedTown,
+  searchQuery,
+  isMarketFiltered,
+  marketName,
+  onResetFilters,
 }: NaverMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const panoRef = useRef<HTMLDivElement>(null);
@@ -180,33 +190,54 @@ export default function NaverMap({
     // Helper: create individual store pin marker
     const createStoreMarker = (store: Store, isSelected: boolean) => {
       let pinColor = '#16a34a'; // green
-      if (store.status === 'unavailable') {
+      let symbol = '';
+
+      if (isMarketFiltered) {
+        pinColor = '#ea580c'; // orange for traditional market
+        symbol = '🛍️';
+      } else if (store.status === 'unavailable') {
         pinColor = '#dc2626'; // red
       } else if (store.status === 'verify') {
         pinColor = '#d97706'; // amber
+      } else if (store.category?.includes('주유') || store.name.includes('주유소') || store.name.includes('충전소')) {
+        pinColor = '#0284c7'; // sky blue for fuel
+        symbol = '⛽';
+      } else if (store.name.includes('하나로마트')) {
+        pinColor = '#16a34a';
+        symbol = '🛒';
       }
 
       const markerContent = `
         <div class="marker-pin ${isSelected ? 'active' : ''}" style="position: relative; cursor: pointer;">
           <div style="
-            width: ${isSelected ? '32px' : '24px'};
-            height: ${isSelected ? '32px' : '24px'};
+            width: ${isSelected ? '34px' : '26px'};
+            height: ${isSelected ? '34px' : '26px'};
             background-color: ${pinColor};
             border: 2px solid #ffffff;
             border-radius: 50% 50% 50% 0;
             transform: rotate(-45deg);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: all 0.2s ease-out;
           ">
-            <div style="
-              width: ${isSelected ? '12px' : '8px'};
-              height: ${isSelected ? '12px' : '8px'};
-              background-color: #ffffff;
-              border-radius: 50%;
-              transform: rotate(45deg);
-            "></div>
+            ${symbol ? `
+              <span style="
+                font-size: ${isSelected ? '14px' : '11px'};
+                transform: rotate(45deg);
+                line-height: 1;
+                display: block;
+              ">${symbol}</span>
+            ` : `
+              <div style="
+                width: ${isSelected ? '12px' : '8px'};
+                height: ${isSelected ? '12px' : '8px'};
+                background-color: #ffffff;
+                border-radius: 50%;
+                transform: rotate(45deg);
+              "></div>
+            `}
           </div>
         </div>
       `;
@@ -217,8 +248,8 @@ export default function NaverMap({
         title: store.name,
         icon: {
           content: markerContent,
-          size: new window.naver.maps.Size(isSelected ? 32 : 24, isSelected ? 32 : 24),
-          anchor: new window.naver.maps.Point(isSelected ? 16 : 12, isSelected ? 32 : 24),
+          size: new window.naver.maps.Size(isSelected ? 34 : 26, isSelected ? 34 : 26),
+          anchor: new window.naver.maps.Point(isSelected ? 17 : 13, isSelected ? 34 : 26),
         },
         zIndex: isSelected ? 100 : 10,
       });
@@ -260,22 +291,33 @@ export default function NaverMap({
       maxLng: number
     ) => {
       const count = clusterStores.length;
-      let size = 32;
+      let size = 34;
       let fontSize = 12;
-      let bg = 'linear-gradient(135deg, #34d399 0%, #059669 100%)';
+      let bg = isMarketFiltered 
+        ? 'linear-gradient(135deg, #fb923c 0%, #ea580c 100%)' 
+        : 'linear-gradient(135deg, #34d399 0%, #059669 100%)';
+      let shadow = isMarketFiltered 
+        ? '0 4px 14px rgba(234, 88, 12, 0.45)' 
+        : '0 4px 14px rgba(4, 120, 87, 0.4)';
 
       if (count >= 100) {
         size = 54;
         fontSize = 15;
-        bg = 'linear-gradient(135deg, #047857 0%, #065f46 100%)';
+        bg = isMarketFiltered 
+          ? 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)' 
+          : 'linear-gradient(135deg, #047857 0%, #065f46 100%)';
       } else if (count >= 30) {
         size = 44;
         fontSize = 14;
-        bg = 'linear-gradient(135deg, #059669 0%, #0d9488 100%)';
+        bg = isMarketFiltered 
+          ? 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' 
+          : 'linear-gradient(135deg, #059669 0%, #0d9488 100%)';
       } else if (count >= 10) {
         size = 38;
         fontSize = 13;
-        bg = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+        bg = isMarketFiltered 
+          ? 'linear-gradient(135deg, #fb923c 0%, #f97316 100%)' 
+          : 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
       }
 
       const clusterContent = `
@@ -288,7 +330,7 @@ export default function NaverMap({
           border-radius: 50%;
           background: ${bg};
           border: 3px solid #ffffff;
-          box-shadow: 0 4px 14px rgba(4, 120, 87, 0.4);
+          box-shadow: ${shadow};
           color: #ffffff;
           font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
           font-size: ${fontSize}px;
@@ -315,16 +357,29 @@ export default function NaverMap({
       });
 
       window.naver.maps.Event.addListener(marker, 'click', () => {
-        // 동일 건물(시장 등)에 20m 이내로 밀집된 경우: 최대 확대 후 첫 번째 매장 정보 바텀시트 호출
         const spanDist = quickDistanceMeters(minLat, minLng, maxLat, maxLng);
-        if (spanDist < 20 && map.getZoom() >= 16) {
-          map.panTo(new window.naver.maps.LatLng(avgLat, avgLng), { duration: 250 });
-          onSelectStore(clusterStores[0]);
+        // 동일 지번/시장 건물 등에 30m 이내로 밀집된 경우
+        if (spanDist < 30) {
+          if (map.getZoom() >= 16) {
+            map.panTo(new window.naver.maps.LatLng(avgLat, avgLng), { duration: 250 });
+            onSelectStore(clusterStores[0]);
+          } else {
+            // morph로 중심 좌표와 줌인을 일치시켜 화면 중앙으로 확대
+            map.morph(
+              new window.naver.maps.LatLng(avgLat, avgLng),
+              Math.min(map.getZoom() + 2, 17)
+            );
+          }
         } else {
-          // 점진적 단계 확대 (+2레벨씩 부드럽게 확대되어 중간 계층 클러스터링 유지)
-          const nextZoom = Math.min(map.getZoom() + 2, 18);
-          map.panTo(new window.naver.maps.LatLng(avgLat, avgLng), { duration: 300 });
-          map.setZoom(nextZoom, true);
+          // 클러스터에 포함된 모든 매장이 화면 안에 100% 들어오도록 사각형 바운딩
+          const bounds = new window.naver.maps.LatLngBounds(
+            new window.naver.maps.LatLng(minLat, minLng),
+            new window.naver.maps.LatLng(maxLat, maxLng)
+          );
+          const margin = window.naver?.maps?.Margin
+            ? new window.naver.maps.Margin(120, 40, 150, 40)
+            : { top: 120, right: 40, bottom: 150, left: 40 };
+          map.fitBounds(bounds, margin);
         }
       });
 
@@ -416,15 +471,16 @@ export default function NaverMap({
     markersRef.current = newMarkers;
   }, [isLoaded, stores, selectedStore, onSelectStore, currentZoom]);
 
-  // 6. Focus on selected store
+  // 6. Focus on selected store (Smooth morph without panTo/setZoom race conditions)
   useEffect(() => {
     if (!naverMapInstance.current || !selectedStore || !selectedStore.lat || !selectedStore.lng) return;
     const map = naverMapInstance.current;
     const targetCoord = new window.naver.maps.LatLng(selectedStore.lat, selectedStore.lng);
 
-    map.panTo(targetCoord, { duration: 300 });
     if (map.getZoom() < 16) {
-      map.setZoom(16, true);
+      map.morph(targetCoord, 16);
+    } else {
+      map.panTo(targetCoord, { duration: 300 });
     }
   }, [selectedStore]);
 
@@ -508,7 +564,59 @@ export default function NaverMap({
     }
   }, [isLoaded, userLocation, radius]);
 
-  // 8. Open Panorama (Roadview)
+  // 8. Smart Auto-fitBounds on filter context changes (Town, Market, Search, Favorites)
+  const prevFilterKeyRef = useRef<string>('');
+
+  useEffect(() => {
+    if (!isLoaded || !naverMapInstance.current || stores.length === 0) return;
+    // Don't auto-fit away if user is actively using GPS radius filter
+    if (radius && radius > 0 && userLocation) return;
+    // Don't override individual store selection
+    if (selectedStore) return;
+
+    const currentKey = `${selectedTown || 'all'}_${searchQuery || ''}_${isMarketFiltered ? 'market' : ''}_${stores.length}`;
+    if (prevFilterKeyRef.current === currentKey) return;
+    prevFilterKeyRef.current = currentKey;
+
+    const map = naverMapInstance.current;
+
+    // When showing all 1000+ stores with no active query or town filter
+    if ((!selectedTown || selectedTown === 'all') && !searchQuery && !isMarketFiltered && stores.length >= 1000) {
+      map.morph(new window.naver.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng), DEFAULT_ZOOM);
+      return;
+    }
+
+    // Calculate bounding box of the active stores
+    let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    let validCount = 0;
+
+    for (const s of stores) {
+      if (s.lat && s.lng) {
+        minLat = Math.min(minLat, s.lat);
+        maxLat = Math.max(maxLat, s.lat);
+        minLng = Math.min(minLng, s.lng);
+        maxLng = Math.max(maxLng, s.lng);
+        validCount++;
+      }
+    }
+
+    if (validCount === 0) return;
+
+    if (validCount === 1) {
+      map.morph(new window.naver.maps.LatLng(minLat, minLng), 16);
+    } else {
+      const bounds = new window.naver.maps.LatLngBounds(
+        new window.naver.maps.LatLng(minLat, minLng),
+        new window.naver.maps.LatLng(maxLat, maxLng)
+      );
+      const margin = window.naver?.maps?.Margin
+        ? new window.naver.maps.Margin(120, 40, 150, 40)
+        : { top: 120, right: 40, bottom: 150, left: 40 };
+      map.fitBounds(bounds, margin);
+    }
+  }, [isLoaded, stores, radius, userLocation, selectedStore, selectedTown, searchQuery, isMarketFiltered]);
+
+  // 9. Open Panorama (Roadview)
   const openRoadviewForStore = (store: Store) => {
     if (!store.lat || !store.lng) return;
     setPanoramaStore(store);
@@ -547,12 +655,14 @@ export default function NaverMap({
 
   const handleResetCenter = () => {
     if (naverMapInstance.current) {
-      naverMapInstance.current.panTo(
+      naverMapInstance.current.morph(
         new window.naver.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng),
-        { duration: 300 }
+        DEFAULT_ZOOM
       );
-      naverMapInstance.current.setZoom(DEFAULT_ZOOM, true);
       onSelectStore(null);
+    }
+    if (onResetFilters) {
+      onResetFilters();
     }
   };
 
@@ -560,6 +670,31 @@ export default function NaverMap({
     <div className="relative w-full h-full bg-slate-100 overflow-hidden">
       {/* Naver Map DOM Container */}
       <div ref={mapRef} className="w-full h-full" />
+
+      {/* Floating Active Focus Badge with 1-Tap Reset */}
+      {(selectedTown !== 'all' || isMarketFiltered || searchQuery) && (
+        <div className="absolute top-28 md:top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
+          <div className="bg-slate-900/90 backdrop-blur-md text-white px-3.5 py-1.5 rounded-full shadow-lg border border-slate-700/80 flex items-center gap-2 text-xs font-semibold">
+            <span className={`w-2 h-2 rounded-full ${isMarketFiltered ? 'bg-orange-400 animate-ping' : 'bg-emerald-400 animate-pulse'}`}></span>
+            <span>
+              {isMarketFiltered
+                ? `${marketName || selectedTown} 5일장 (${stores.length}곳)`
+                : selectedTown && selectedTown !== 'all'
+                ? `${selectedTown} (${stores.length}곳)`
+                : `'${searchQuery}' (${stores.length}곳)`}
+            </span>
+            {onResetFilters && (
+              <button
+                onClick={onResetFilters}
+                className="ml-1 bg-white/20 hover:bg-white/30 text-white px-2 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-0.5 transition-all active:scale-95"
+                title="함평군 전체 지도로 복귀"
+              >
+                <span>✕ 전체지도</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Panorama / Roadview Modal Overlay */}
       {showPanorama && (
