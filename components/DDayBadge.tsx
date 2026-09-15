@@ -30,7 +30,7 @@ export default function DDayBadge() {
 
       {showModal && (
         <div 
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150 pointer-events-auto"
           onClick={() => setShowModal(false)}
         >
           <div 
