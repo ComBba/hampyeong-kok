@@ -19,6 +19,7 @@ interface NaverMapProps {
   userLocation: UserLocation | null;
   onLocateMe: () => void;
   isLocating: boolean;
+  radius?: number | null;
 }
 
 declare global {
@@ -37,6 +38,7 @@ export default function NaverMap({
   userLocation,
   onLocateMe,
   isLocating,
+  radius,
 }: NaverMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const panoRef = useRef<HTMLDivElement>(null);
@@ -46,6 +48,7 @@ export default function NaverMap({
 
   const markersRef = useRef<{ [id: string]: any }>({});
   const userMarkerRef = useRef<any>(null);
+  const radiusCircleRef = useRef<any>(null);
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -250,6 +253,10 @@ export default function NaverMap({
         userMarkerRef.current.setMap(null);
         userMarkerRef.current = null;
       }
+      if (radiusCircleRef.current) {
+        radiusCircleRef.current.setMap(null);
+        radiusCircleRef.current = null;
+      }
       return;
     }
 
@@ -288,7 +295,33 @@ export default function NaverMap({
     } else {
       userMarkerRef.current.setPosition(pos);
     }
-  }, [isLoaded, userLocation]);
+
+    // Radius Circle
+    if (radius && radius > 0) {
+      if (!radiusCircleRef.current) {
+        radiusCircleRef.current = new window.naver.maps.Circle({
+          map: map,
+          center: pos,
+          radius: radius,
+          fillColor: '#10b981',
+          fillOpacity: 0.12,
+          strokeColor: '#059669',
+          strokeOpacity: 0.6,
+          strokeWeight: 2,
+        });
+      } else {
+        radiusCircleRef.current.setCenter(pos);
+        radiusCircleRef.current.setRadius(radius);
+        radiusCircleRef.current.setMap(map);
+      }
+      map.fitBounds(radiusCircleRef.current.getBounds(), { margin: 30 });
+    } else {
+      if (radiusCircleRef.current) {
+        radiusCircleRef.current.setMap(null);
+        radiusCircleRef.current = null;
+      }
+    }
+  }, [isLoaded, userLocation, radius]);
 
   // 8. Open Panorama (Roadview)
   const openRoadviewForStore = (store: Store) => {

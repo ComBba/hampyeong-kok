@@ -142,10 +142,10 @@ export default function StoreCard({
         </div>
 
         {store.distance !== undefined && (
-          <span className="text-xs font-bold text-emerald-600 flex-shrink-0 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+          <span className="text-[11px] font-bold text-emerald-700 flex-shrink-0 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shadow-2xs whitespace-nowrap">
             {store.distance < 1000
-              ? `${Math.round(store.distance)}m`
-              : `${(store.distance / 1000).toFixed(1)}km`}
+              ? `🚶 도보 ${Math.max(1, Math.round(store.distance / 75))}분 (${Math.round(store.distance)}m)`
+              : `🚗 차 ${Math.max(1, Math.round((store.distance / 1000) * 1.8))}분 (${(store.distance / 1000).toFixed(1)}km)`}
           </span>
         )}
       </div>

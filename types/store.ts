@@ -42,3 +42,7 @@ export interface UserLocation {
   lat: number;
   lng: number;
 }
+
+export type SortOption = 'distance' | 'name' | 'recent';
+export type DistanceRadius = 'all' | 500 | 1000 | 3000 | 5000;
+

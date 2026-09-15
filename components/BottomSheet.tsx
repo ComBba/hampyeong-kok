@@ -24,10 +24,10 @@ export default function BottomSheet({
     <div
       className={`fixed bottom-0 left-0 right-0 z-20 md:hidden bg-white rounded-t-3xl shadow-2xl border-t border-slate-200 transition-all duration-300 ease-in-out flex flex-col ${
         selectedStore
-          ? 'max-h-[80vh]'
+          ? 'max-h-[75vh]'
           : isExpanded
           ? 'h-[75vh]'
-          : 'h-[160px]'
+          : 'h-[110px]'
       }`}
     >
       {/* Handle / Header bar */}
