@@ -1,8 +1,16 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Store, UserLocation } from '@/types/store';
-import { Navigation2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { 
+  Navigation2, 
+  ZoomIn, 
+  ZoomOut, 
+  RotateCcw, 
+  Layers, 
+  Car, 
+  X 
+} from 'lucide-react';
 
 interface NaverMapProps {
   stores: Store[];
@@ -31,11 +39,22 @@ export default function NaverMap({
   isLocating,
 }: NaverMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
+  const panoRef = useRef<HTMLDivElement>(null);
   const naverMapInstance = useRef<any>(null);
+  const trafficLayerRef = useRef<any>(null);
+  const panoInstance = useRef<any>(null);
+
   const markersRef = useRef<{ [id: string]: any }>({});
   const userMarkerRef = useRef<any>(null);
+
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Map Feature Toggles
+  const [isSatellite, setIsSatellite] = useState(false);
+  const [isTraffic, setIsTraffic] = useState(false);
+  const [showPanorama, setShowPanorama] = useState(false);
+  const [panoramaStore, setPanoramaStore] = useState<Store | null>(null);
 
   const clientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID;
 
@@ -59,8 +78,7 @@ export default function NaverMap({
     const script = document.createElement('script');
     script.id = scriptId;
     script.type = 'text/javascript';
-    // Support ncpKeyId / ncpClientId
-    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}`;
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}&submodules=panorama`;
     script.async = true;
 
     script.onload = () => {
@@ -106,7 +124,38 @@ export default function NaverMap({
     }
   }, [isLoaded, onSelectStore]);
 
-  // 3. Render Markers for Stores
+  // 3. Toggle Map Type (Satellite vs Normal)
+  const toggleMapType = () => {
+    if (!naverMapInstance.current) return;
+    const map = naverMapInstance.current;
+    if (!isSatellite) {
+      map.setMapTypeId(window.naver.maps.MapTypeId.HYBRID);
+      setIsSatellite(true);
+    } else {
+      map.setMapTypeId(window.naver.maps.MapTypeId.NORMAL);
+      setIsSatellite(false);
+    }
+  };
+
+  // 4. Toggle Traffic Layer
+  const toggleTraffic = () => {
+    if (!naverMapInstance.current) return;
+    const map = naverMapInstance.current;
+    if (!isTraffic) {
+      if (!trafficLayerRef.current) {
+        trafficLayerRef.current = new window.naver.maps.TrafficLayer();
+      }
+      trafficLayerRef.current.setMap(map);
+      setIsTraffic(true);
+    } else {
+      if (trafficLayerRef.current) {
+        trafficLayerRef.current.setMap(null);
+      }
+      setIsTraffic(false);
+    }
+  };
+
+  // 5. Render Markers for Stores
   useEffect(() => {
     if (!isLoaded || !naverMapInstance.current) return;
     const map = naverMapInstance.current;
@@ -124,19 +173,12 @@ export default function NaverMap({
 
       const isSelected = selectedStore?.id === store.id;
 
-      // Pin Color & Style
+      // Pin Color
       let pinColor = '#16a34a'; // green
-      let pinBorder = '#15803d';
-      let pinDot = '#86efac';
-
       if (store.status === 'unavailable') {
         pinColor = '#dc2626'; // red
-        pinBorder = '#b91c1c';
-        pinDot = '#fca5a5';
       } else if (store.status === 'verify') {
         pinColor = '#d97706'; // amber
-        pinBorder = '#b45309';
-        pinDot = '#fde68a';
       }
 
       const markerContent = `
@@ -176,7 +218,7 @@ export default function NaverMap({
         zIndex: isSelected ? 100 : 10,
       });
 
-      window.naver.maps.Event.addListener(marker, 'click', (e: any) => {
+      window.naver.maps.Event.addListener(marker, 'click', () => {
         onSelectStore(store);
       });
 
@@ -186,7 +228,7 @@ export default function NaverMap({
     markersRef.current = newMarkers;
   }, [isLoaded, stores, selectedStore, onSelectStore]);
 
-  // 4. Focus on selected store
+  // 6. Focus on selected store
   useEffect(() => {
     if (!naverMapInstance.current || !selectedStore || !selectedStore.lat || !selectedStore.lng) return;
     const map = naverMapInstance.current;
@@ -198,7 +240,7 @@ export default function NaverMap({
     }
   }, [selectedStore]);
 
-  // 5. User GPS location marker
+  // 7. User GPS location marker
   useEffect(() => {
     if (!isLoaded || !naverMapInstance.current) return;
     const map = naverMapInstance.current;
@@ -248,7 +290,31 @@ export default function NaverMap({
     }
   }, [isLoaded, userLocation]);
 
-  // Map Controls
+  // 8. Open Panorama (Roadview)
+  const openRoadviewForStore = (store: Store) => {
+    if (!store.lat || !store.lng) return;
+    setPanoramaStore(store);
+    setShowPanorama(true);
+  };
+
+  useEffect(() => {
+    if (!showPanorama || !panoramaStore || !panoRef.current || !window.naver?.maps?.Panorama) return;
+
+    try {
+      if (!panoInstance.current) {
+        panoInstance.current = new window.naver.maps.Panorama(panoRef.current, {
+          position: new window.naver.maps.LatLng(panoramaStore.lat, panoramaStore.lng),
+          pov: { pan: -135, tilt: 29, fov: 100 },
+        });
+      } else {
+        panoInstance.current.setPosition(new window.naver.maps.LatLng(panoramaStore.lat, panoramaStore.lng));
+      }
+    } catch (e) {
+      console.error("Panorama error:", e);
+    }
+  }, [showPanorama, panoramaStore]);
+
+  // Controls
   const handleZoomIn = () => {
     if (naverMapInstance.current) {
       naverMapInstance.current.setZoom(naverMapInstance.current.getZoom() + 1, true);
@@ -277,11 +343,30 @@ export default function NaverMap({
       {/* Naver Map DOM Container */}
       <div ref={mapRef} className="w-full h-full" />
 
+      {/* Panorama / Roadview Modal Overlay */}
+      {showPanorama && (
+        <div className="absolute inset-0 z-50 bg-slate-900/90 flex flex-col animate-in fade-in duration-200">
+          <div className="p-3 bg-slate-800 text-white flex items-center justify-between border-b border-slate-700">
+            <div>
+              <span className="text-xs font-bold text-emerald-400 mr-2">네이버 거리뷰</span>
+              <span className="text-sm font-bold">{panoramaStore?.name}</span>
+            </div>
+            <button
+              onClick={() => setShowPanorama(false)}
+              className="p-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div ref={panoRef} className="flex-1 w-full h-full bg-black" />
+        </div>
+      )}
+
       {/* Fallback / Loading / Error overlay */}
       {!isLoaded && !loadError && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/80 backdrop-blur-sm z-10">
           <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mb-2" />
-          <p className="text-xs font-semibold text-slate-600">지도를 불러오는 중입니다...</p>
+          <p className="text-xs font-semibold text-slate-600">네이버 지도를 불러오는 중입니다...</p>
         </div>
       )}
 
@@ -292,17 +377,12 @@ export default function NaverMap({
           </div>
           <h4 className="text-sm font-bold text-slate-900 mb-1">지도 로드 안내</h4>
           <p className="text-xs text-slate-600 max-w-sm mb-4 leading-relaxed">{loadError}</p>
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-500 text-left space-y-1">
-            <p>1. 네이버 클라우드 플랫폼 콘솔에 접속</p>
-            <p>2. Maps &gt; Application 등록 정보 확인</p>
-            <p>3. Web 서비스 URL에 현재 접속 도메인이 포함되어 있는지 확인</p>
-          </div>
         </div>
       )}
 
       {/* Floating Control Buttons */}
       <div className="absolute right-3.5 top-3.5 z-10 flex flex-col gap-1.5 shadow-md">
-        {/* GPS Locate Me Button */}
+        {/* GPS Locate Me */}
         <button
           onClick={onLocateMe}
           disabled={isLocating}
@@ -312,6 +392,28 @@ export default function NaverMap({
           title="내 위치 찾기"
         >
           <Navigation2 className={`w-4 h-4 ${isLocating ? 'animate-spin text-blue-600' : ''}`} />
+        </button>
+
+        {/* Satellite Map Toggle */}
+        <button
+          onClick={toggleMapType}
+          className={`w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center shadow-sm transition-colors ${
+            isSatellite ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 hover:text-emerald-700'
+          }`}
+          title={isSatellite ? "일반지도로 보기" : "위성지도로 보기"}
+        >
+          <Layers className="w-4 h-4" />
+        </button>
+
+        {/* Live Traffic Toggle */}
+        <button
+          onClick={toggleTraffic}
+          className={`w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center shadow-sm transition-colors ${
+            isTraffic ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 hover:text-blue-600'
+          }`}
+          title={isTraffic ? "교통정보 끄기" : "실시간 교통정보 보기"}
+        >
+          <Car className="w-4 h-4" />
         </button>
 
         {/* Reset Hampyeong Center */}

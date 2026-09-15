@@ -16,6 +16,7 @@ export interface Store {
   lng: number | null;
   regDate: string;
   distance?: number;
+  isGasStation?: boolean;
 }
 
 export interface StoreData {

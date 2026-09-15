@@ -44,7 +44,7 @@ ssl_ctx.verify_mode = ssl.CERT_NONE
 
 def geocode_address(address, town=''):
     clean_addr = address.strip()
-    if clean_addr in geocode_cache:
+    if clean_addr in geocode_cache and geocode_cache[clean_addr] is not None:
         return geocode_cache[clean_addr]
     
     encoded = urllib.parse.quote(clean_addr)
@@ -72,7 +72,7 @@ def geocode_address(address, town=''):
     except Exception as e:
         print(f"Geocoding error for '{clean_addr}': {e}")
     
-    # Fallback attempt with town name if initial address has issues
+    # Fallback
     if town and town not in clean_addr:
         fallback_query = f"전라남도 함평군 {town} {clean_addr}"
         try:
@@ -135,7 +135,6 @@ def determine_category(name, orig_cat):
     if any(k in s_name for k in ['비료', '종묘', '농자재', '기계', '철물']):
         return '농자재·철물'
 
-    # Fallback based on original category
     if o_cat == '음식점업': return '음식점'
     if o_cat == '소매업': return '마트·편의점'
     if o_cat == '개인서비스업': return '생활·서비스'
@@ -146,48 +145,48 @@ def determine_category(name, orig_cat):
 def evaluate_status(name, town, standard_cat, address):
     s_name = str(name).strip()
 
-    # 1. 하나로마트 예외 판단
-    if '하나로마트' in s_name:
+    # 1. 함평읍 소재 대형 하나로마트 / 농협본점 (30억 초과)
+    if '하나로마트' in s_name or '축협' in s_name:
         if town == '함평읍':
             return {
                 'status': 'unavailable',
                 'badge': '사용불가',
-                'reason': '연매출 30억 원 초과 제한 사업장 (함평읍 본점)',
+                'reason': '연매출 30억 원 초과 제한 사업장 (면 지역이 아닌 함평읍 본점은 선불카드 사용 불가)',
                 'rule_type': 'EXCEED_REVENUE'
             }
         else:
             return {
                 'status': 'available',
                 'badge': '예외가능',
-                'reason': '면 지역 하나로마트 예외 허용 대상 (민생지원금 사용 가능)',
+                'reason': '면 지역 하나로마트 예외 허용 대상 (민생지원금 선불카드 사용 가능)',
                 'rule_type': 'MYEON_HANARO_EXCEPTION'
             }
 
-    # 2. 대형 식자재마트 / 30억 초과 가능성 점포
+    # 2. 대형 식자재마트
     if any(k in s_name for k in ['식자재마트', '나비식자재']):
         return {
             'status': 'verify',
             'badge': '확인필요',
-            'reason': '연매출 30억 원 기준 초과 여부 확인 필요 (점포 사전 문의 권장)',
+            'reason': '연매출 30억 원 기준 초과 여부 확인 필요 (대형 매장으로 결제 전 가맹점 사전 문의 권장)',
             'rule_type': 'VERIFY_REVENUE'
         }
 
-    # 3. 유흥 / 사행성 (조례 및 지침상 제한)
+    # 3. 유흥 / 사행성
     if any(k in s_name for k in ['단란주점', '유흥주점', '룸싸롱']):
         return {
             'status': 'unavailable',
             'badge': '사용불가',
-            'reason': '유흥·사행성 업종 제한',
+            'reason': '유흥·사행성 업종 제한 (선불카드 사용 불가)',
             'rule_type': 'RESTRICTED_INDUSTRY'
         }
 
-    # 4. 프랜차이즈 직영점 의심 점포 (편의점 등)
+    # 4. 프랜차이즈 직영점
     if any(k in s_name for k in ['스타벅스', '직영점']):
         return {
-            'status': 'verify',
-            'badge': '확인필요',
-            'reason': '본사 직영점 여부 확인 필요 (가맹점만 사용 가능)',
-            'rule_type': 'VERIFY_FRANCHISE'
+            'status': 'unavailable',
+            'badge': '사용불가',
+            'reason': '대기업 본사 직영점 제한 대상 (선불카드 사용 불가)',
+            'rule_type': 'DIRECT_FRANCHISE'
         }
 
     # 5. 일반 등록 가맹점 -> 사용 가능
@@ -220,7 +219,36 @@ for r in range(4, ws.max_row + 1):
             'reg_date': str(reg_date).strip() if reg_date else ''
         })
 
-print(f"Total raw stores to process: {len(raw_rows)}")
+# Explicitly add major restricted places that residents frequently ask about
+EXPLICIT_RESTRICTED = [
+    {
+        'num': 9901,
+        'name': '함평농협 하나로마트 본점',
+        'address': '전라남도 함평군 함평읍 중앙길 78',
+        'town': '함평읍',
+        'orig_cat': '농축협본점',
+        'reg_date': '2026.09 (공식지침제한)'
+    },
+    {
+        'num': 9902,
+        'name': '함평축협 하나로마트 본점',
+        'address': '전라남도 함평군 함평읍 서부길 57',
+        'town': '함평읍',
+        'orig_cat': '농축협본점',
+        'reg_date': '2026.09 (공식지침제한)'
+    },
+    {
+        'num': 9903,
+        'name': '함평축협 한우프라자 본점',
+        'address': '전라남도 함평군 함평읍 서부길 57',
+        'town': '함평읍',
+        'orig_cat': '음식점업',
+        'reg_date': '2026.09 (공식지침제한)'
+    }
+]
+
+raw_rows.extend(EXPLICIT_RESTRICTED)
+print(f"Total stores to process (including explicit restricted): {len(raw_rows)}")
 
 processed_stores = []
 stats = {'available': 0, 'unavailable': 0, 'verify': 0, 'geocoded': 0, 'failed_geocode': 0}
@@ -232,9 +260,6 @@ for idx, item in enumerate(raw_rows):
     
     geo = geocode_address(item['address'], item['town'])
     if not geo:
-        # short pause and retry with simplified road name
-        time.sleep(0.05)
-        # Attempt without building sub-details if any
         parts = item['address'].split()
         if len(parts) >= 4:
             simplified = ' '.join(parts[:4])
@@ -265,14 +290,10 @@ for idx, item in enumerate(raw_rows):
         'ruleType': rule['rule_type'],
         'lat': lat,
         'lng': lng,
-        'regDate': item['reg_date']
+        'regDate': item['reg_date'],
+        'isGasStation': std_cat == '주유소·충전소'
     }
     processed_stores.append(store_entry)
-
-    if (idx + 1) % 100 == 0 or idx == len(raw_rows) - 1:
-        print(f"Progress: {idx + 1}/{len(raw_rows)} (Geocoded: {stats['geocoded']}, Failed: {stats['failed_geocode']})")
-        with open(CACHE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(geocode_cache, f, ensure_ascii=False, indent=2)
 
 # Save final stores.json
 final_path = r'public\data\stores.json'
@@ -282,7 +303,7 @@ with open(final_path, 'w', encoding='utf-8') as f:
             'title': '함평콕 2026 민생회복지원금 사용처 마스터 데이터',
             'totalCount': len(processed_stores),
             'updatedAt': '2026-09-15',
-            'source': '함평군청 공식 함평사랑상품권 가맹점 현황 (2026-03)',
+            'source': '함평군청 공식 함평사랑상품권 가맹점 현황 (2026-03) + 2026 민생지원금 제한지침',
             'stats': stats
         },
         'categories': sorted(list(categories_count.keys())),
@@ -290,11 +311,9 @@ with open(final_path, 'w', encoding='utf-8') as f:
         'stores': processed_stores
     }, f, ensure_ascii=False, indent=2)
 
-# Also save cache
 with open(CACHE_FILE, 'w', encoding='utf-8') as f:
     json.dump(geocode_cache, f, ensure_ascii=False, indent=2)
 
 print("\n--- PROCESSING COMPLETED ---")
 print(f"Saved {len(processed_stores)} stores to {final_path}")
 print(f"Stats: {stats}")
-print(f"Category counts: {categories_count}")
